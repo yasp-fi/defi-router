@@ -5,9 +5,10 @@ import "forge-std/Test.sol";
 import "../src/DefiRouter.sol";
 
 contract CounterTest is Test {
-    DefiRouter public counter;
+    DefiRouter public router;
 
     function setUp() public {
-        counter = new DefiRouter();
+        address WETH = address(0);
+        router = new DefiRouter(WETH);
     }
 }
