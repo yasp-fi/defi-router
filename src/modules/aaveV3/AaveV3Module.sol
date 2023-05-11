@@ -23,5 +23,5 @@ abstract contract AaveV3Module {
     IPool(lendingPool).withdraw(address(aToken), value, address(this));
   }
 
-  function aave__collectRewards() public { }
+  function aaveCollectRewards() public { }
 }

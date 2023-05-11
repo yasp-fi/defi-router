@@ -61,6 +61,6 @@ abstract contract CurveModule {
         IERC4626(gaugeVault).withdraw(amount, address(this), address(this));
     }
 
-    function curve__collectRewards() public {}
-    function curve__swap() public returns (uint256 amount) {}
+    function curveCollectRewards() public {}
+    function curveSwap() public returns (uint256 amount) {}
 }

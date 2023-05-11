@@ -6,6 +6,7 @@ import "../src/DefiRouter.sol";
 
 contract DefiRouterTest is Test {
   address public WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+  address public PERMIT2 = address(0x0);
   address public USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
   address public ADMIN = address(0xdeadbeef);
 
@@ -18,7 +19,14 @@ contract DefiRouterTest is Test {
     mainnetFork = vm.createFork(MAINNET_RPC_URL);
     vm.selectFork(mainnetFork);
 
-    router = new DefiRouter(WETH);
+    ImmutableState memory state = ImmutableState({
+      permit2: PERMIT2,
+      weth9: WETH,
+      v3Factory: address(0),
+      poolInitCodeHash: bytes32(0)
+    });
+
+    router = new DefiRouter(state);
   }
 
   function test_aaveDeposit(address user, uint256 amountIn) public {

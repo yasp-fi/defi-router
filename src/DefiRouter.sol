@@ -1,11 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.13;
 
-import "./base/PeripheryPaymentsWithFee.sol";
+import "./base/PeripheryPermit2.sol";
+import "./modules/aaveV3/AaveV3Module.sol";
+import "./modules/compound/CompoundModule.sol";
+import "./modules/curve/CurveModule.sol";
+import "./modules/balancer/BalancerModule.sol";
+import "./modules/uniswapV3/UniswapV3Module.sol";
 import "./utils/Multicall.sol";
-import "./utils/SelfPermit.sol";
-import "./SupportedModules.sol";
 
-contract DefiRouter is SupportedModules, PeripheryPaymentsWithFee, Multicall, SelfPermit {
-    constructor(address _WETH9) PeripheryImmutableState(_WETH9) {}
+abstract contract SupportedModules is
+  PeripheryPermit2,
+  Multicall,
+  AaveV3Module,
+  UniswapV3Module,
+  CompoundModule,
+  BalancerModule
+{ }
+
+contract DefiRouter is SupportedModules {
+  constructor(ImmutableState memory state) PeripheryImmutableState(state) { }
+  receive() external payable { }
 }
