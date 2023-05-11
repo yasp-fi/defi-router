@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 abstract contract BalancerModule {
-    function balancer__swap() public returns (uint256 amount) {}
-    function balancer__provideLiquidity() public returns (uint256 amount) {}
-    function balancer__removeLiquidity() public returns (uint256 amount) {}
-    function balancer__stake() public returns (uint256 stakeAmount) {}
-    function balancer__unstake() public returns (uint256 stakeAmount) {}
-    function balancer__collectRewards() public returns (uint256 rewardsAmount) {}
+    function balancerSwap() public returns (uint256 amount) {}
+    function balancerProvideLiquidity() public returns (uint256 amount) {}
+    function balancerRemoveLiquidity() public returns (uint256 amount) {}
+    function balancerStake() public returns (uint256 stakeAmount) {}
+    function balancerUnstake() public returns (uint256 stakeAmount) {}
+    function balancerCollectRewards() public returns (uint256 rewardsAmount) {}
 }

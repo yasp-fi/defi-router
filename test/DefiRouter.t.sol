@@ -9,7 +9,7 @@ contract DefiRouterTest is Test {
   address public USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
   address public ADMIN = address(0xdeadbeef);
 
-  string MAINNET_RPC_URL = "https://eth.llamarpc.com";
+  string MAINNET_RPC_URL = "https://cloudflare-eth.com";
   uint256 mainnetFork;
 
   DefiRouter public router;
@@ -40,7 +40,7 @@ contract DefiRouterTest is Test {
     );
 
     data[1] = abi.encodeWithSelector(
-      router.aave__provideLiquidity.selector, POOL, USDC, amountIn
+      router.aaveProvideLiquidity.selector, POOL, USDC, amountIn
     );
 
     // Transaction 2
@@ -66,7 +66,7 @@ contract DefiRouterTest is Test {
     );
 
     data[1] = abi.encodeWithSelector(
-      router.aave__removeLiquidity.selector, POOL, USDC, amountIn
+      router.aaveRemoveLiquidity.selector, POOL, USDC, amountIn
     );
 
     // Transaction 2

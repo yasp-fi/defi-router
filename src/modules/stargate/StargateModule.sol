@@ -6,23 +6,23 @@ import "./IStargateRouter.sol";
 import "./IStargateLPStaking.sol";
 
 abstract contract StargateModule {
-    function stargate__provideLiquidity(address router, uint256 poolId, uint256 assets) public {
+    function stargateProvideLiquidity(address router, uint256 poolId, uint256 assets) public {
         IStargateRouter(router).addLiquidity(poolId, assets, address(this));
     }
 
-    function stargate__removeLiquidity(address router, uint16 poolId, uint256 assets) public {
+    function stargateRemoveLiquidity(address router, uint16 poolId, uint256 assets) public {
         IStargateRouter(router).instantRedeemLocal(poolId, assets, address(this));
     }
 
-    function stargate__stake(address stakingVault, uint256 assets) public {
+    function stargateStake(address stakingVault, uint256 assets) public {
         IERC4626(stakingVault).deposit(assets, address(this));
     }
 
-    function stargate__unstake(address stakingVault, uint256 assets) public {
+    function stargateUnstake(address stakingVault, uint256 assets) public {
         IERC4626(stakingVault).withdraw(assets, address(this), address(this));
     }
 
-    function stargate__collectRewards(address staking, address user) public {
+    function stargateCollectRewards(address staking, address user) public {
         // TODO: add ERC4626-based staking collect reward
     }
 }

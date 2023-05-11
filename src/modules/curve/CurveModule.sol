@@ -5,7 +5,7 @@ import "forge-std/interfaces/IERC4626.sol";
 import "./ICurvePool.sol";
 
 abstract contract CurveModule {
-    function curve__provideLiquidity(address pool, uint8 coins, uint8 coinId, uint256 amount) public {
+    function curveProvideLiquidity(address pool, uint8 coins, uint8 coinId, uint256 amount) public {
         ICurvePool curvePool = ICurvePool(pool);
 
         if (coins == 2) {
@@ -44,7 +44,7 @@ abstract contract CurveModule {
         }
     }
 
-    function curve__removeLiquidity(address pool, uint8 coinId, uint256 amount) public {
+    function curveRemoveLiquidity(address pool, uint8 coinId, uint256 amount) public {
         ICurvePool curvePool = ICurvePool(pool);
 
         try curvePool.remove_liquidity_one_coin(amount, coinId, 0) {}
@@ -53,11 +53,11 @@ abstract contract CurveModule {
         }
     }
 
-    function curve__stake(address gaugeVault, uint256 amount) public {
+    function curveStake(address gaugeVault, uint256 amount) public {
         IERC4626(gaugeVault).deposit(amount, address(this));
     }
 
-    function curve__unstake(address gaugeVault, uint256 amount) public {
+    function curveUnstake(address gaugeVault, uint256 amount) public {
         IERC4626(gaugeVault).withdraw(amount, address(this), address(this));
     }
 
