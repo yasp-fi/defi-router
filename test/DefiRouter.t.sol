@@ -5,9 +5,9 @@ import "forge-std/Test.sol";
 import "../src/DefiRouter.sol";
 
 contract DefiRouterTest is Test {
-  address public WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+  address public WETH = address(0x4200000000000000000000000000000000000006);
   address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
-  address public USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+  address public USDC = address(0x7F5c764cBc14f9669B88837ca1490cCa17c31607);
 
   DefiRouter public router;
 
@@ -28,14 +28,15 @@ contract DefiRouterTest is Test {
 
     deal(USDC, user, amountIn);
 
-    address POOL = address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
+    address POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
 
     vm.prank(user);
 
     IERC20(USDC).approve(address(router), type(uint256).max);
-    router.payOrPermit2Transfer(USDC, user, address(router), amountIn);
+    router.pay(USDC, user, address(router), amountIn);
     router.approveERC20(USDC, POOL, amountIn);
     router.aaveProvideLiquidity(POOL, USDC, address(router), amountIn);
+    router.approveERC20(router.aaveAToken(POOL, USDC), POOL, amountIn);
     router.aaveRemoveLiquidity(POOL, USDC, user, amountIn);
   }
 
