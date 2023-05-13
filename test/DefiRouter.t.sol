@@ -78,4 +78,20 @@ contract DefiRouterTest is Test {
       VAULT, POOL, USDC, payable(user), 0, Constants.MAX_BALANCE
     );
   }
+
+  function test_curve(address user, uint256 amountIn) public {
+    vm.assume(user != address(0));
+    amountIn = bound(amountIn, 1e6, 1e10);
+
+    deal(USDC, user, amountIn);
+
+    address POOL = address(0x7f90122BF0700F9E7e1F688fe926940E8839F353);
+
+    vm.prank(user);
+    IERC20(USDC).approve(address(router), type(uint256).max);
+    router.pay(USDC, user, address(router), amountIn);
+    router.approveERC20(USDC, POOL, Constants.MAX_BALANCE);
+    router.curveProvideLiquidity(POOL, USDC, Constants.MAX_BALANCE);
+    router.curveRemoveLiquidity(POOL, USDC, Constants.MAX_BALANCE);
+  }
 }

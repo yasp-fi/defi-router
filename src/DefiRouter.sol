@@ -12,9 +12,9 @@ import "./utils/Multicall.sol";
 abstract contract SupportedModules is
   PeripheryPermit2,
   Multicall,
-  AaveV3Module,
   UniswapV3Module,
-  CompoundModule,
+  AaveV3Module,
+  CurveModule,
   BalancerModule
 { }
 
