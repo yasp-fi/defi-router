@@ -8,6 +8,15 @@ import "./PeripheryPayments.sol";
 abstract contract PeripheryPermit2 is PeripheryPayments {
   using SafeCast160 for uint256;
 
+  function approve(
+    address token,
+    address spender,
+    uint160 amount,
+    uint48 expiration
+  ) public {
+    PERMIT2.approve(token, spender, amount, expiration);
+  }
+
   function permit(
     address from,
     IAllowanceTransfer.PermitSingle calldata permitSingle,
