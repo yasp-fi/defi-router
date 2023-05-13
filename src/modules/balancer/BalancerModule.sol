@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "./IBalancerVault.sol";
-import "./IBalancerStaking.sol";
 import "../../base/PeripheryImmutableState.sol";
 import "../../utils/Constants.sol";
 import "forge-std/interfaces/IERC4626.sol";
