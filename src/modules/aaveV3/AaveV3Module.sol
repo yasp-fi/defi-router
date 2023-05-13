@@ -37,11 +37,12 @@ abstract contract AaveV3Module {
     uint256 value
   ) public {
     address aToken = aaveAToken(lendingPool, asset);
+    
     value = value == Constants.MAX_BALANCE
       ? IERC20(aToken).balanceOf(address(this))
       : value;
 
-    IPool(lendingPool).withdraw(aToken, value, receiver);
+    IPool(lendingPool).withdraw(asset, value, receiver);
   }
 
   function aaveCollectRewards() public { }

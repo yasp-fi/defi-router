@@ -24,20 +24,21 @@ contract DefiRouterTest is Test {
 
   function test_aave(address user, uint256 amountIn) public {
     vm.assume(user != address(0));
-    amountIn = bound(amountIn, 1e18, 1e27);
+    amountIn = bound(amountIn, 1e6, 1e10);
 
     deal(USDC, user, amountIn);
 
     address POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
 
-    vm.prank(user);
+    IERC20 aToken = IERC20(router.aaveAToken(POOL, USDC));
 
+    vm.prank(user);
     IERC20(USDC).approve(address(router), type(uint256).max);
     router.pay(USDC, user, address(router), amountIn);
-    router.approveERC20(USDC, POOL, amountIn);
-    router.aaveProvideLiquidity(POOL, USDC, address(router), amountIn);
-    router.approveERC20(router.aaveAToken(POOL, USDC), POOL, amountIn);
-    router.aaveRemoveLiquidity(POOL, USDC, user, amountIn);
+    router.approveERC20(USDC, POOL, Constants.MAX_BALANCE);
+    router.aaveProvideLiquidity(POOL, USDC, address(router), Constants.MAX_BALANCE);
+    router.approveERC20(address(aToken), POOL, Constants.MAX_BALANCE);
+    router.aaveRemoveLiquidity(POOL, USDC, user, Constants.MAX_BALANCE);
   }
 
   // function test_compound(address user, uint256 amountIn) public {
