@@ -8,7 +8,6 @@ import {PeripheryPermit2} from "../../base/PeripheryPermit2.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import "../../base/PeripheryImmutableState.sol";
 
-
 abstract contract UniswapV2Module is PeripheryImmutableState, PeripheryPermit2 {
     error TooLittleReceived();
     error TooMuchRequested();
@@ -77,11 +76,6 @@ abstract contract UniswapV2Module is PeripheryImmutableState, PeripheryPermit2 {
             path[0],
             path[1]
         );
-        if (
-            amountIn != 0 // amountIn of 0 to signal that the pair already has the tokens
-        ) {
-            payOrPermit2Transfer(path[0], payer, firstPair, amountIn);
-        }
 
         ERC20 tokenOut = ERC20(path[path.length - 1]);
         uint256 balanceBefore = tokenOut.balanceOf(recipient);
