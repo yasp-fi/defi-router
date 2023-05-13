@@ -8,17 +8,10 @@ contract DefiRouterTest is Test {
   address public WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
   address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
   address public USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-  address public ADMIN = address(0xdeadbeef);
-
-  string MAINNET_RPC_URL = "https://cloudflare-eth.com";
-  uint256 mainnetFork;
 
   DefiRouter public router;
 
   function setUp() public {
-    mainnetFork = vm.createFork(MAINNET_RPC_URL);
-    vm.selectFork(mainnetFork);
-
     ImmutableState memory state = ImmutableState({
       permit2: PERMIT2,
       weth9: WETH,
@@ -29,7 +22,7 @@ contract DefiRouterTest is Test {
     router = new DefiRouter(state);
   }
 
-  function test_aaveDeposit(address user, uint256 amountIn) public {
+  function test_aave(address user, uint256 amountIn) public {
     vm.assume(user != address(0));
     amountIn = bound(amountIn, 1e18, 1e27);
 
@@ -37,47 +30,36 @@ contract DefiRouterTest is Test {
 
     address POOL = address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
 
-    // Transaction 1
     vm.prank(user);
-    IERC20(USDC).approve(address(PERMIT2), type(uint256).max);
 
-    bytes[] memory data = new bytes[](2);
-
-    data[0] = abi.encodeWithSelector(
-      router.approveERC20.selector, USDC, POOL, amountIn
-    );
-
-    data[2] = abi.encodeWithSelector(
-      router.aaveProvideLiquidity.selector, POOL, USDC, amountIn
-    );
-
-    // Transaction 2
-    router.multicall(data);
+    IERC20(USDC).approve(address(router), type(uint256).max);
+    router.payOrPermit2Transfer(USDC, user, address(router), amountIn);
+    router.approveERC20(USDC, POOL, amountIn);
+    router.aaveProvideLiquidity(POOL, USDC, address(router), amountIn);
+    router.aaveRemoveLiquidity(POOL, USDC, user, amountIn);
   }
 
-  function test_aaveWithdraw(address user, uint256 amountIn) public {
-    vm.assume(user != address(0));
-    amountIn = bound(amountIn, 1e18, 1e27);
+  // function test_compound(address user, uint256 amountIn) public {
+  //   vm.assume(user != address(0));
+  //   amountIn = bound(amountIn, 1e18, 1e27);
 
-    deal(USDC, user, amountIn);
+  //   deal(USDC, user, amountIn);
 
-    address POOL = address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
+  //   vm.prank(user);
 
-    // Transaction 1
-    vm.prank(user);
-    IERC20(USDC).approve(address(router), amountIn);
+  //   IERC20(USDC).approve(address(router), type(uint256).max);
+  //   router.pay(USDC, address(router), amountIn);
+  // }
 
-    bytes[] memory data = new bytes[](2);
+  // function test_balancer(address user, uint256 amountIn) public {
+  //   vm.assume(user != address(0));
+  //   amountIn = bound(amountIn, 1e18, 1e27);
 
-    data[0] = abi.encodeWithSelector(
-      router.pay.selector, USDC, user, address(router), amountIn
-    );
+  //   deal(USDC, user, amountIn);
 
-    data[1] = abi.encodeWithSelector(
-      router.aaveRemoveLiquidity.selector, POOL, USDC, amountIn
-    );
+  //   vm.prank(user);
 
-    // Transaction 2
-    router.multicall(data);
-  }
+  //   IERC20(USDC).approve(address(router), type(uint256).max);
+  //   router.pay(USDC, address(router), amountIn);
+  // }
 }

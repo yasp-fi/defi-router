@@ -11,12 +11,12 @@ import { ERC1155 } from "solmate/tokens/ERC1155.sol";
 
 /// @author Uniswap Foundation
 abstract contract PeripheryPayments is PeripheryImmutableState {
-  function approveERC20(ERC20 token, address spender, uint256 amount) public {
-    uint256 balance = token.balanceOf(address(this));
+  function approveERC20(address token, address spender, uint256 amount) public {
+    uint256 balance = ERC20(token).balanceOf(address(this));
     amount = amount == Constants.MAX_BALANCE ? balance : amount;
     require(amount <= balance, "Error: Insufficient ERC20 balance");
 
-    SafeTransferLib.safeApprove(token, spender, amount);
+    SafeTransferLib.safeApprove(ERC20(token), spender, amount);
   }
 
   function sweep(address token, address recipient, uint256 amountMinimum)
@@ -57,15 +57,20 @@ abstract contract PeripheryPayments is PeripheryImmutableState {
     );
   }
 
-  function pay(address token, address recipient, uint256 value) public {
-    if (token == Constants.ETH) {
+  function pay(address token, address payer, address recipient, uint256 value)
+    public
+  {
+    if (token == Constants.ETH && payer == address(this)) {
+      value = value == Constants.MAX_BALANCE ? address(this).balance : value;
       SafeTransferLib.safeTransferETH(recipient, value);
     } else {
-      if (value == Constants.MAX_BALANCE) {
-        value = ERC20(token).balanceOf(address(this));
+      value =
+        value == Constants.MAX_BALANCE ? ERC20(token).balanceOf(payer) : value;
+      if (payer == address(this)) {
+        SafeTransferLib.safeTransfer(ERC20(token), recipient, value);
+      } else {
+        SafeTransferLib.safeTransferFrom(ERC20(token), payer, recipient, value);
       }
-
-      SafeTransferLib.safeTransfer(ERC20(token), recipient, value);
     }
   }
 

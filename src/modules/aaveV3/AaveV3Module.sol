@@ -3,22 +3,45 @@ pragma solidity ^0.8.13;
 
 import "forge-std/interfaces/IERC20.sol";
 import "./IPool.sol";
+import "../../utils/Constants.sol";
 
 abstract contract AaveV3Module {
+  uint16 constant REFFERAL_CODE = 0;
+
+  function getAToken(address lendingPool, address asset)
+    public
+    view
+    returns (address aTokenAddress)
+  {
+    IPool.ReserveData memory data = IPool(lendingPool).getReserveData(asset);
+    return data.aTokenAddress;
+  }
+
   function aaveProvideLiquidity(
     address lendingPool,
     address asset,
+    address receiver,
     uint256 value
   ) public {
-    IPool(lendingPool).supply(address(asset), value, address(this), 0);
+    value = value == Constants.MAX_BALANCE
+      ? IERC20(asset).balanceOf(address(this))
+      : value;
+
+    IPool(lendingPool).supply(asset, value, receiver, REFFERAL_CODE);
   }
 
   function aaveRemoveLiquidity(
     address lendingPool,
-    address aToken,
+    address asset,
+    address receiver,
     uint256 value
   ) public {
-    IPool(lendingPool).withdraw(address(aToken), value, address(this));
+    address aToken = getAToken(lendingPool, asset);
+    value = value == Constants.MAX_BALANCE
+      ? IERC20(aToken).balanceOf(address(this))
+      : value;
+      
+    IPool(lendingPool).withdraw(aToken, value, receiver);
   }
 
   function aaveCollectRewards() public { }

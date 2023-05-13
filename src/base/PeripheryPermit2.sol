@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.13;
 
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -59,7 +60,7 @@ abstract contract PeripheryPermit2 is PeripheryPayments {
     address recipient,
     uint256 amount
   ) public {
-    if (payer == address(this)) pay(token, recipient, amount);
+    if (payer == address(this)) pay(token, payer, recipient, amount);
     else permit2TransferFrom(token, payer, recipient, amount.toUint160());
   }
 }
