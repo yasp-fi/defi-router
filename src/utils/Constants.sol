@@ -14,12 +14,6 @@ library Constants {
   address internal constant ETH =
     address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
-  /// @dev Used as a flag for identifying that msg.sender should be used, saves gas by sending more 0 bytes
-  address internal constant MSG_SENDER = address(1);
-
-  /// @dev Used as a flag for identifying address(this) should be used, saves gas by sending more 0 bytes
-  address internal constant ADDRESS_THIS = address(2);
-
   /// Uniswap V3 constants
   /// @dev The length of the bytes encoded address
   uint256 internal constant ADDR_SIZE = 20;

@@ -44,6 +44,4 @@ abstract contract AaveV3Module {
 
     IPool(lendingPool).withdraw(asset, value, receiver);
   }
-
-  function aaveCollectRewards() public { }
 }

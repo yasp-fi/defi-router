@@ -13,85 +13,59 @@ contract DefiRouterTest is Test {
   DefiRouter public router;
 
   function setUp() public {
-    ImmutableState memory state = ImmutableState({
-      permit2: PERMIT2,
-      weth9: WETH,
-      v3Factory: address(0),
-      poolInitCodeHash: bytes32(0)
-    });
+    ImmutableState memory state =
+      ImmutableState({ permit2: PERMIT2, weth9: WETH });
 
     router = new DefiRouter(state);
   }
 
-  function test_aave(address user, uint256 amountIn) public {
+  function test_multicallAny(address user, uint256 amountIn) public {
     vm.assume(user != address(0));
     amountIn = bound(amountIn, 1e6, 1e10);
 
     deal(USDC, user, amountIn);
 
-    address POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
-
-    IERC20 aToken = IERC20(router.aaveAToken(POOL, USDC));
-
+    address AAVE_POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
     vm.prank(user);
     IERC20(USDC).approve(address(router), type(uint256).max);
-    router.pay(USDC, user, address(router), amountIn);
-    router.approveERC20(USDC, POOL, Constants.MAX_BALANCE);
-    router.aaveProvideLiquidity(
-      POOL, USDC, address(router), Constants.MAX_BALANCE
-    );
-    router.approveERC20(address(aToken), POOL, Constants.MAX_BALANCE);
-    router.aaveRemoveLiquidity(POOL, USDC, user, Constants.MAX_BALANCE);
-  }
 
-  // function test_compound(address user, uint256 amountIn) public {
-  //   vm.assume(user != address(0));
-  //   amountIn = bound(amountIn, 1e18, 1e27);
+    IMulticall.Instruction[] memory bundle = new IMulticall.Instruction[](4);
+    bundle[0] = IMulticall.Instruction({
+      executable: address(router),
+      data: abi.encodeWithSignature(
+        "pay(address,address,address,uint256)",
+        USDC,
+        user,
+        address(router),
+        amountIn
+        )
+    });
 
-  //   deal(USDC, user, amountIn);
+    bundle[1] = IMulticall.Instruction({
+      executable: address(router),
+      data: abi.encodeWithSignature(
+        "approveERC20(address,address,uint256)", USDC, AAVE_POOL, Constants.MAX_BALANCE
+        )
+    });
 
-  //   vm.prank(user);
+    bundle[2] = IMulticall.Instruction({
+      executable: AAVE_POOL,
+      data: abi.encodeWithSignature(
+        "supply(address,uint256,address,uint16)",
+        USDC,
+        amountIn,
+        address(router),
+        uint16(0)
+        )
+    });
 
-  //   IERC20(USDC).approve(address(router), type(uint256).max);
-  //   router.pay(USDC, address(router), amountIn);
-  // }
+    bundle[3] = IMulticall.Instruction({
+      executable: AAVE_POOL,
+      data: abi.encodeWithSignature(
+        "withdraw(address,uint256,address)", USDC, amountIn, user
+        )
+    });
 
-  function test_balancer(address user, uint256 amountIn) public {
-    vm.assume(user != address(0));
-    amountIn = bound(amountIn, 1e6, 1e10);
-
-    deal(USDC, user, amountIn);
-
-    address VAULT = address(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
-    bytes32 POOL = bytes32(
-      0xce6195089b302633ed60f3f427d1380f6a2bfbc7000200000000000000000424
-    );
-
-    vm.prank(user);
-    IERC20(USDC).approve(address(router), type(uint256).max);
-    router.pay(USDC, user, address(router), amountIn);
-    router.approveERC20(USDC, VAULT, Constants.MAX_BALANCE);
-    router.balancerProvideLiquidity(
-      VAULT, POOL, USDC, payable(address(router)), Constants.MAX_BALANCE, 0
-    );
-    router.balancerRemoveLiquidity(
-      VAULT, POOL, USDC, payable(user), 0, Constants.MAX_BALANCE
-    );
-  }
-
-  function test_curve(address user, uint256 amountIn) public {
-    vm.assume(user != address(0));
-    amountIn = bound(amountIn, 1e6, 1e10);
-
-    deal(USDC, user, amountIn);
-
-    address POOL = address(0x7f90122BF0700F9E7e1F688fe926940E8839F353);
-
-    vm.prank(user);
-    IERC20(USDC).approve(address(router), type(uint256).max);
-    router.pay(USDC, user, address(router), amountIn);
-    router.approveERC20(USDC, POOL, Constants.MAX_BALANCE);
-    router.curveProvideLiquidity(POOL, USDC, Constants.MAX_BALANCE);
-    router.curveRemoveLiquidity(POOL, USDC, Constants.MAX_BALANCE);
+    router.multicall(bundle);
   }
 }

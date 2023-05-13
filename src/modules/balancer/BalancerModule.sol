@@ -103,18 +103,4 @@ abstract contract BalancerModule is PeripheryImmutableState {
 
     balancerRemoveLiquidity(vault, poolId, receiver, minAmountsOut, userData);
   }
-
-  function balancerStake(address gaugeVault, uint256 amount, address receiver)
-    public
-  {
-    IERC4626(gaugeVault).deposit(amount, receiver);
-  }
-
-  function balancerUnstake(address gaugeVault, uint256 amount, address receiver)
-    public
-  {
-    IERC4626(gaugeVault).withdraw(amount, receiver, address(this));
-  }
-
-  function balancerCollectRewards() public { }
 }

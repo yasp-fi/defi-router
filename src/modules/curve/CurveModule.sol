@@ -20,7 +20,11 @@ abstract contract CurveModule {
     }
   }
 
-  function curveGetToken(address pool, uint8 index) public view returns (address) {
+  function curveGetToken(address pool, uint8 index)
+    public
+    view
+    returns (address)
+  {
     ICurvePool curvePool = ICurvePool(pool);
 
     try curvePool.coins(index) returns (address token) {
@@ -38,7 +42,11 @@ abstract contract CurveModule {
     for (count = 2; curveGetToken(pool, count) != address(0); count++) { }
   }
 
-  function curveCoinId(address pool, address token) public view returns (uint8 index) {
+  function curveCoinId(address pool, address token)
+    public
+    view
+    returns (uint8 index)
+  {
     for (index = 0; curveGetToken(pool, index) != token; index++) { }
   }
 
@@ -46,47 +54,17 @@ abstract contract CurveModule {
     public
   {
     ICurvePool curvePool = ICurvePool(pool);
-    uint8 coins = curveCoins(pool);
+    // uint8 coins = curveCoins(pool);
     uint8 coinId = curveCoinId(pool, token);
 
     amount = amount == Constants.MAX_BALANCE
       ? IERC20(token).balanceOf(address(this))
       : amount;
 
-    if (coins == 2) {
-      uint256[2] memory coinsAmount;
-      coinsAmount[coinId] = amount;
-      uint256 expectedLp = curvePool.calc_token_amount(coinsAmount, true);
-      curvePool.add_liquidity(coinsAmount, (expectedLp * 99) / 100);
-    }
-
-    if (coins == 3) {
-      uint256[3] memory coinsAmount;
-      coinsAmount[coinId] = amount;
-      uint256 expectedLp = curvePool.calc_token_amount(coinsAmount, true);
-      curvePool.add_liquidity(coinsAmount, (expectedLp * 99) / 100);
-    }
-
-    if (coins == 4) {
-      uint256[4] memory coinsAmount;
-      coinsAmount[coinId] = amount;
-      uint256 expectedLp = curvePool.calc_token_amount(coinsAmount, true);
-      curvePool.add_liquidity(coinsAmount, (expectedLp * 99) / 100);
-    }
-
-    if (coins == 5) {
-      uint256[5] memory coinsAmount;
-      coinsAmount[coinId] = amount;
-      uint256 expectedLp = curvePool.calc_token_amount(coinsAmount, true);
-      curvePool.add_liquidity(coinsAmount, (expectedLp * 99) / 100);
-    }
-
-    if (coins == 6) {
-      uint256[6] memory coinsAmount;
-      coinsAmount[coinId] = amount;
-      uint256 expectedLp = curvePool.calc_token_amount(coinsAmount, true);
-      curvePool.add_liquidity(coinsAmount, (expectedLp * 99) / 100);
-    }
+    uint256[2] memory coinsAmount;
+    coinsAmount[coinId] = amount;
+    uint256 expectedLp = curvePool.calc_token_amount(coinsAmount, true);
+    curvePool.add_liquidity(coinsAmount, (expectedLp * 99) / 100);
   }
 
   function curveRemoveLiquidity(address pool, address token, uint256 amount)
@@ -104,19 +82,4 @@ abstract contract CurveModule {
       curvePool.remove_liquidity_one_coin(amount, int128(int8(coinId)), 0);
     }
   }
-
-  function curveStake(address gaugeVault, uint256 amount, address receiver)
-    public
-  {
-    IERC4626(gaugeVault).deposit(amount, receiver);
-  }
-
-  function curveUnstake(address gaugeVault, uint256 amount, address receiver)
-    public
-  {
-    IERC4626(gaugeVault).withdraw(amount, receiver, address(this));
-  }
-
-  function curveCollectRewards() public { }
-  function curveSwap() public returns (uint256 amount) { }
 }
