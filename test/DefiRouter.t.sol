@@ -6,7 +6,7 @@ import "../src/DefiRouter.sol";
 
 contract DefiRouterTest is Test {
   address public WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-  address public PERMIT2 = address(0x0);
+  address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
   address public USDC = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
   address public ADMIN = address(0xdeadbeef);
 
@@ -39,15 +39,15 @@ contract DefiRouterTest is Test {
 
     // Transaction 1
     vm.prank(user);
-    IERC20(USDC).approve(address(router), amountIn);
+    IERC20(USDC).approve(address(PERMIT2), type(uint256).max);
 
     bytes[] memory data = new bytes[](2);
 
     data[0] = abi.encodeWithSelector(
-      router.pay.selector, USDC, user, address(router), amountIn
+      router.approveERC20.selector, USDC, POOL, amountIn
     );
 
-    data[1] = abi.encodeWithSelector(
+    data[2] = abi.encodeWithSelector(
       router.aaveProvideLiquidity.selector, POOL, USDC, amountIn
     );
 

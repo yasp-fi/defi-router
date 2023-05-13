@@ -10,7 +10,6 @@ abstract contract AaveV3Module {
     address asset,
     uint256 value
   ) public {
-    IERC20(asset).approve(lendingPool, value);
     IPool(lendingPool).supply(address(asset), value, address(this), 0);
   }
 
@@ -19,7 +18,6 @@ abstract contract AaveV3Module {
     address aToken,
     uint256 value
   ) public {
-    IERC20(aToken).approve(lendingPool, value);
     IPool(lendingPool).withdraw(address(aToken), value, address(this));
   }
 
