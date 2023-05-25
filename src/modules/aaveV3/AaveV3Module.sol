@@ -8,7 +8,7 @@ import "../../utils/Constants.sol";
 abstract contract AaveV3Module {
   uint16 constant REFFERAL_CODE = 0;
 
-  function getAToken(address lendingPool, address asset)
+  function aaveAToken(address lendingPool, address asset)
     public
     view
     returns (address aTokenAddress)
@@ -36,13 +36,12 @@ abstract contract AaveV3Module {
     address receiver,
     uint256 value
   ) public {
-    address aToken = getAToken(lendingPool, asset);
+    address aToken = aaveAToken(lendingPool, asset);
+    
     value = value == Constants.MAX_BALANCE
       ? IERC20(aToken).balanceOf(address(this))
       : value;
-      
-    IPool(lendingPool).withdraw(aToken, value, receiver);
-  }
 
-  function aaveCollectRewards() public { }
+    IPool(lendingPool).withdraw(asset, value, receiver);
+  }
 }

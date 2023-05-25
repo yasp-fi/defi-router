@@ -3,10 +3,10 @@ pragma solidity ^0.8.13;
 
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { SafeCast160 } from "permit2/libraries/SafeCast160.sol";
-import "./PeripheryPayments.sol";
+import "./PeripheryImmutableState.sol";
 
 /// @title Periphery Payments through Permit2
-abstract contract PeripheryPermit2 is PeripheryPayments {
+abstract contract PeripheryPermit2 is PeripheryImmutableState {
   using SafeCast160 for uint256;
 
   function approve(
@@ -52,15 +52,5 @@ abstract contract PeripheryPermit2 is PeripheryPayments {
       require(batchDetails[i].from == owner, "Error: FromAddressIsNotOwner");
     }
     PERMIT2.transferFrom(batchDetails);
-  }
-
-  function payOrPermit2Transfer(
-    address token,
-    address payer,
-    address recipient,
-    uint256 amount
-  ) public {
-    if (payer == address(this)) pay(token, payer, recipient, amount);
-    else permit2TransferFrom(token, payer, recipient, amount.toUint160());
   }
 }

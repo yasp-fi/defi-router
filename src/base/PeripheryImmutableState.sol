@@ -24,6 +24,7 @@ struct ImmutableState {
 abstract contract PeripheryImmutableState {
   IWETH9 public immutable WETH9;
   IAllowanceTransfer public immutable PERMIT2;
+
   /// @dev The address of UniswapV2Factory
   address internal immutable UNISWAP_V2_FACTORY;
   /// @dev The UniswapV2Pair initcodehash
@@ -32,6 +33,7 @@ abstract contract PeripheryImmutableState {
   address public immutable UNISWAP_V3_FACTORY;
   /// @dev The UniswapV3Pool initcodehash
   bytes32 public immutable UNISWAP_V3_POOL_INIT_CODE_HASH;
+
 
   constructor(ImmutableState memory state) {
     WETH9 = IWETH9(state.weth9);
