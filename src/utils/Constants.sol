@@ -1,14 +1,19 @@
 pragma solidity ^0.8.13;
 
 library Constants {
-  uint256 internal constant FEE_BIPS_BASE = 10_000;
-  /// Aliases
-  /// @dev Used for identifying cases when this contract's balance of a token is to be used as an input
-  /// This value is equivalent to 1<<255, i.e. a singular 1 in the most significant bit.
-  uint256 internal constant MAX_BALANCE =
-    0x8000000000000000000000000000000000000000000000000000000000000000;
+  bytes32 internal constant STATIC_MASK =
+    0x0100000000000000000000000000000000000000000000000000000000000000;
+  bytes32 internal constant RETURN_SIZE_MASK =
+    0x00FF000000000000000000000000000000000000000000000000000000000000;
+  bytes32 internal constant OFFSETS_MASK =
+    0x0000000000000000000000000000000000000000000000000000000000000001;
+  bytes32 internal constant REFS_MASK =
+    0x00000000000000000000000000000000000000000000000000000000000000FF;
 
-  /// @dev Used as a flag for identifying the transfer of ETH instead of a token
-  address internal constant ETH =
-    address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+  uint256 internal constant RETURN_SIZE_OFFSET = 240;
+  uint256 internal constant REFS_COUNT_LIMIT = 22;
+  uint256 internal constant OFFSETS_COUNT_LIMIT = 64;
+  
+  uint256 internal constant GAS_CALL_OFFSET = 5000;
+  uint256 internal constant BIPS_BASE = 10000;
 }
