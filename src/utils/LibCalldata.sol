@@ -71,7 +71,7 @@ library LibCalldata {
     }
 
     if (!success) {
-      if (result.length < 68) revert("exec");
+      if (result.length < 68) revert("Execution is failed");
       assembly {
         result := add(result, 0x04)
       }

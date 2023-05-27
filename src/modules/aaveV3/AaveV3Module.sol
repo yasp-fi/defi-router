@@ -4,44 +4,35 @@ pragma solidity ^0.8.13;
 import "forge-std/interfaces/IERC20.sol";
 import "./IPool.sol";
 import "../../utils/Constants.sol";
+import "../ModuleBase.sol";
 
-abstract contract AaveV3Module {
+contract AaveV3Module is ModuleBase {
   uint16 constant REFFERAL_CODE = 0;
 
-  function aaveAToken(address lendingPool, address asset)
-    public
-    view
-    returns (address aTokenAddress)
-  {
-    IPool.ReserveData memory data = IPool(lendingPool).getReserveData(asset);
+  IPool public immutable AAVE;
+
+  constructor(address lendingPool, address weth) ModuleBase(weth) {
+    AAVE = IPool(lendingPool);
+  }
+
+  function getAToken(address asset) internal view returns (address aTokenAddress) {
+    IPool.ReserveData memory data = AAVE.getReserveData(asset);
     return data.aTokenAddress;
   }
 
-  function aaveProvideLiquidity(
-    address lendingPool,
-    address asset,
-    address receiver,
-    uint256 value
-  ) public {
-    value = value == Constants.MAX_BALANCE
-      ? IERC20(asset).balanceOf(address(this))
-      : value;
-
-    IPool(lendingPool).supply(asset, value, receiver, REFFERAL_CODE);
+  function supply(address asset, address receiver, uint256 value) public payable {
+    uint256 balance = IERC20(asset).balanceOf(address(this));
+    require(balance >= value, "Error: insufficient amount of ERC20 token");
+    IERC20(asset).approve(address(AAVE), value);
+    AAVE.supply(asset, value, receiver, REFFERAL_CODE);
   }
 
-  function aaveRemoveLiquidity(
-    address lendingPool,
-    address asset,
-    address receiver,
-    uint256 value
-  ) public {
-    address aToken = aaveAToken(lendingPool, asset);
-    
-    value = value == Constants.MAX_BALANCE
-      ? IERC20(aToken).balanceOf(address(this))
-      : value;
+  function withdraw(address asset, address receiver, uint256 value) public payable returns (uint256 withdrawAmount) {
+    address aToken = getAToken(asset);
 
-    IPool(lendingPool).withdraw(asset, value, receiver);
+    uint256 aTokenBalance = IERC20(aToken).balanceOf(address(this));
+    require(aTokenBalance >= value, "Error: insufficient amount of ERC20 token");
+
+    withdrawAmount = AAVE.withdraw(asset, value, receiver);
   }
 }

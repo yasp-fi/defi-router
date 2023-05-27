@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
 pragma solidity ^0.8.13;
 
-import "./LibConfig.sol";
-import "./LibCalldata.sol";
-import "./Constants.sol";
+import "./utils/LibConfig.sol";
+import "./utils/LibCalldata.sol";
+import "./utils/Constants.sol";
 
 abstract contract Executor {
   using LibConfig for bytes32;
@@ -12,9 +12,28 @@ abstract contract Executor {
   event ExecBegin(address indexed target, bytes4 indexed selector, bytes payload);
   event ExecEnd(address indexed target, bytes4 indexed selector, bytes result);
 
-  function validateTarget(address target) internal virtual view returns (bool);
+  modifier isNotHalted() {
+    require(!_isHalted(), "Halted");
+    _;
+  }
 
-  function execute(address[] memory targets, bytes32[] memory configs, bytes[] memory payloads) internal {
+  fallback() external payable isNotHalted {
+    require(_validateCallback(msg.sender), "Invalid callback");
+    address target = _getCallackTarget(msg.sender);
+    bytes memory result = msg.data.exec(target, type(uint256).max);
+
+    uint256 size = result.length;
+    assembly {
+      let loc := add(result, 0x20)
+      return(loc, size)
+    }
+  }
+
+  receive() external payable {
+    require(msg.sender.code.length > 0, "Not allowed from EOA");
+  }
+
+  function _execute(address[] memory targets, bytes32[] memory configs, bytes[] memory payloads) internal {
     require(targets.length == configs.length, "Targets and configs length is inconsistent");
     require(targets.length == payloads.length, "Targets and payloads length is inconsistent");
 
@@ -27,9 +46,8 @@ abstract contract Executor {
       bytes32 config = configs[i];
       bytes memory payload = payloads[i];
 
-      require(validateTarget(target), "Target is not valid");
+      require(_validateTarget(target), "Target is not valid");
 
-      // Check if the payload contains dynamic parameter
       if (config.isDynamic()) payload.adjust(config, refArray, refIndex);
 
       bytes4 selector = payload.getSelector();
@@ -39,16 +57,15 @@ abstract contract Executor {
       emit ExecEnd(target, selector, result);
 
       if (config.isReferenced()) {
-        // If so, parse the output and place it into local stack
         uint256 size = config.getReturnSize();
-        uint256 newIndex = updateReferences(refArray, result, refIndex);
+        uint256 newIndex = _updateReferences(refArray, result, refIndex);
         require(newIndex == refIndex + size, "Return size and parsed return size not matched");
         refIndex = newIndex;
       }
     }
   }
 
-  function updateReferences(bytes32[256] memory refArray, bytes memory ret, uint256 index)
+  function _updateReferences(bytes32[256] memory refArray, bytes memory ret, uint256 index)
     internal
     pure
     returns (uint256 newIndex)
@@ -61,10 +78,15 @@ abstract contract Executor {
     require(newIndex <= 256, "stack overflow");
     assembly {
       let offset := shl(5, index)
-      // Store the data into localStack
+      // Store the data into refArray
       for { let i := 0 } lt(i, len) { i := add(i, 0x20) } {
         mstore(add(refArray, add(i, offset)), mload(add(add(ret, i), 0x20)))
       }
     }
   }
+
+  function _isHalted() internal view virtual returns (bool);
+  function _validateTarget(address target) internal view virtual returns (bool);
+  function _validateCallback(address callback) internal view virtual returns (bool);
+  function _getCallackTarget(address callback) internal view virtual returns (address);
 }
