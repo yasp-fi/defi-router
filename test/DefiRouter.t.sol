@@ -22,6 +22,14 @@ contract DefiRouterTest is Test {
   Permit2Module public permit2Module;
   AaveV3Module public aaveModule;
 
+  modifier withActor(address actor, uint256 ethValue) {
+    vm.assume(10e18 > ethValue && ethValue > 10e15);
+    vm.deal(actor, ethValue);
+    vm.startPrank(actor);
+    _;
+    vm.stopPrank();
+  }
+
   function setUp() public {
     registry = new Registry(OWNER);
     router = new DefiRouter(address(registry));
@@ -37,10 +45,7 @@ contract DefiRouterTest is Test {
 
   function test_permit2() public { }
 
-  function test_aave(address user, uint256 ethValue) public {
-    vm.assume(10e18 > ethValue && ethValue > 10e15);
-    vm.deal(user, ethValue);
-
+  function test_aave(address user, uint256 ethValue) public withActor(user, ethValue) {
     bytes4 wrapSelector = bytes4(keccak256("wrapETH(address,uint256)"));
     bytes4 supplySelector = bytes4(keccak256("supply(address,address,uint256)"));
     bytes4 withdrawSelector = bytes4(keccak256("withdraw(address,address,uint256)"));
@@ -55,9 +60,12 @@ contract DefiRouterTest is Test {
     configs[2] = bytes32(0x0);
     bytes[] memory payloads = new bytes[](3);
     payloads[0] = abi.encodeWithSelector(wrapSelector, address(router), ethValue);
-    payloads[1] = abi.encodeWithSelector(supplySelector, WETH,  address(router), ethValue);
-    payloads[2] = abi.encodeWithSelector(withdrawSelector, WETH,  user, ethValue);
+    payloads[1] = abi.encodeWithSelector(supplySelector, WETH, address(router), ethValue);
+    payloads[2] = abi.encodeWithSelector(withdrawSelector, WETH, user, ethValue);
 
     router.execute{ value: ethValue }(modules, configs, payloads);
   }
+
+  function test_curve(address user, uint256 ethValue) public withActor(user, ethValue) { }
+  function test_stargate(address user, uint256 ethValue) public withActor(user, ethValue) { }
 }
