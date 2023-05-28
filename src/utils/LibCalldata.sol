@@ -7,26 +7,15 @@ import "../utils/Constants.sol";
 library LibCalldata {
   using LibConfig for bytes32;
 
-  function getSelector(bytes memory data)
-    internal
-    pure
-    returns (bytes4 selector)
-  {
-    selector = data[0] | (bytes4(data[1]) >> 8) | (bytes4(data[2]) >> 16)
-      | (bytes4(data[3]) >> 24);
+  function getSelector(bytes memory data) internal pure returns (bytes4 selector) {
+    selector = data[0] | (bytes4(data[1]) >> 8) | (bytes4(data[2]) >> 16) | (bytes4(data[3]) >> 24);
   }
 
-  function adjust(
-    bytes memory data,
-    bytes32 config,
-    bytes32[256] memory refArray,
-    uint256 refLimit
-  ) internal pure {
+  function adjust(bytes memory data, bytes32 config, bytes32[256] memory refArray, uint256 refLimit) internal pure {
     require(!config.isStatic(), "Config is static, dynamic config required");
     // Fetch the parameter configuration from config
     uint256 base = Constants.BIPS_BASE;
-    (uint256[] memory refs, uint256[] memory offsets) =
-      config.getDynamicParams();
+    (uint256[] memory refs, uint256[] memory offsets) = config.getDynamicParams();
 
     // Trim the data with the reference and parameters
     for (uint256 i = 0; i < refs.length; i++) {
@@ -50,18 +39,12 @@ library LibCalldata {
     }
   }
 
-  function exec(bytes memory data, address to, uint256 counter)
-    internal
-    returns (bytes memory result)
-  {
+  function exec(bytes memory data, address to, uint256 counter) internal returns (bytes memory result) {
     bool success;
     uint256 gasOffset = Constants.GAS_CALL_OFFSET;
 
     assembly {
-      success :=
-        delegatecall(
-          sub(gas(), gasOffset), to, add(data, 0x20), mload(data), 0, 0
-        )
+      success := delegatecall(sub(gas(), gasOffset), to, add(data, 0x20), mload(data), 0, 0)
       let size := returndatasize()
       result := mload(0x40)
 
@@ -79,9 +62,7 @@ library LibCalldata {
       if (counter == type(uint256).max) {
         revert(abi.decode(result, (string))); // Don't prepend counter
       } else {
-        revert(
-          string(abi.encodePacked(counter, "_", abi.decode(result, (string))))
-        );
+        revert(string(abi.encodePacked(counter, "_", abi.decode(result, (string)))));
       }
     }
   }

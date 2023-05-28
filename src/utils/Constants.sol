@@ -10,9 +10,10 @@ library Constants {
   bytes32 internal constant REFS_MASK = 0x00000000000000000000000000000000000000000000000000000000000000FF;
 
   uint256 internal constant RETURN_SIZE_OFFSET = 240;
+  uint256 internal constant LOCATION_OFFSET = 176;
   uint256 internal constant REFS_COUNT_LIMIT = 22;
   uint256 internal constant OFFSETS_COUNT_LIMIT = 64;
 
   uint256 internal constant GAS_CALL_OFFSET = 5000;
-  uint256 internal constant BIPS_BASE = 10000;
+  uint256 internal constant BIPS_BASE = 10000000;
 }

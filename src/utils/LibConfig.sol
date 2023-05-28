@@ -22,32 +22,23 @@ library LibConfig {
 
   function getDynamicParams(bytes32 conf) internal pure returns (uint256[] memory refs, uint256[] memory offsets) {
     require(!isStatic(conf), "Static params");
-    (uint256 refCount, bytes32 nextConf) = _trimUnusedRefs(conf);
-    (refs, nextConf) = _parseRefs(nextConf, refCount);
-    (offsets,) = _parseOffsets(nextConf, refCount);
-  }
-
-  function _trimUnusedRefs(bytes32 conf) internal pure returns (uint256 refCount, bytes32) {
-    refCount = Constants.REFS_COUNT_LIMIT;
+    uint256 refCount = Constants.REFS_COUNT_LIMIT;
     while (conf & Constants.REFS_MASK == Constants.REFS_MASK && refCount > 0) {
       refCount--;
       conf = conf >> 8;
     }
     require(refCount > 0, "No dynamic params");
-    return (refCount, conf);
-  }
+    refs = new uint256[](refCount);
+    offsets = new uint256[](refCount);
 
-  function _parseRefs(bytes32 conf, uint256 refCount) internal pure returns (uint256[] memory refs, bytes32) {
+    // parse refs
     for (uint256 i = 0; i < refCount; i++) {
       refs[i] = uint256(conf & Constants.REFS_MASK);
       conf = conf >> 8;
     }
-    return (refs, conf);
-  }
 
-  function _parseOffsets(bytes32 conf, uint256 refCount) internal pure returns (uint256[] memory offsets, bytes32) {
+    // parse offsets
     uint256 offsetCount = 0;
-
     for (uint256 i = 0; i < Constants.OFFSETS_COUNT_LIMIT; i++) {
       if (conf & Constants.OFFSETS_MASK != 0) {
         require(offsetCount < refCount, "Offset count exceeds ref count");
@@ -57,6 +48,36 @@ library LibConfig {
       conf = conf >> 1;
     }
     require(offsetCount == refCount, "Offset count less than ref count");
-    return (offsets, conf);
+  }
+
+  function buildStatic(uint8 returnSize) internal pure returns (bytes32 conf) {
+    conf |= bytes32(uint256(returnSize) << Constants.RETURN_SIZE_OFFSET);
+  }
+
+  function buildDynamic(uint8 returnSize, uint8[] memory locs, uint8[] memory refs)
+    internal
+    pure
+    returns (bytes32 conf)
+  {
+    require(locs.length == refs.length, "inconsistent length");
+    // set config as dynamic
+    conf |= Constants.STATIC_MASK;
+    // set return data
+    conf |= bytes32(uint256(returnSize) << Constants.RETURN_SIZE_OFFSET);
+
+    // set indexes in payload data where bytes32 gonna be modified
+    uint256 loc;
+    for (uint256 i = 0; i < locs.length; i++) {
+      loc |= 1 << locs[i];
+    }
+    conf |= bytes32(uint256(loc) << Constants.LOCATION_OFFSET);
+
+    // set ref table indexes
+    uint256 ref;
+    for (uint256 i = 0; i < Constants.REFS_COUNT_LIMIT; i++) {
+      uint256 val = i < refs.length ? uint256(refs[i]) : 0xff;
+      ref |= val << ((Constants.REFS_COUNT_LIMIT - i - 1) * 8);
+    }
+    conf |= bytes32(ref);
   }
 }

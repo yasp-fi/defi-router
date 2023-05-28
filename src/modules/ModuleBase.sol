@@ -23,7 +23,7 @@ abstract contract ModuleBase {
     WETH9 = IWETH9(weth);
   }
 
-  function wrapETH(address recipient, uint256 amount) public payable {
+  function wrapETH(address recipient, uint256 amount) public payable returns (uint256 wappedAmount) {
     require(amount <= address(this).balance, "Error: Insufficient ETH");
 
     if (amount > 0) {
@@ -32,9 +32,10 @@ abstract contract ModuleBase {
         WETH9.transfer(recipient, amount);
       }
     }
+    wappedAmount = amount;
   }
 
-  function unwrapWETH9(address recipient, uint256 amountMinimum) public {
+  function unwrapWETH9(address recipient, uint256 amountMinimum) public payable returns (uint256 unwrappedAmount) {
     uint256 value = WETH9.balanceOf(address(this));
     require(value >= amountMinimum, "Error: Insufficient ETH");
     if (value > 0) {
@@ -43,29 +44,10 @@ abstract contract ModuleBase {
         SafeTransferLib.safeTransferETH(recipient, value);
       }
     }
+    unwrappedAmount = value;
   }
 
-  function approve(address token, address spender, uint256 amount) public {
-    require(token != Constants.NATIVE_TOKEN, "Error: this method for ERC20 only");
-    uint256 balance = ERC20(token).balanceOf(address(this));
-    require(balance >= amount, "Error: Insufficient ERC20 balance");
-
-    SafeTransferLib.safeApprove(ERC20(token), spender, amount);
-  }
-
-  function move(address token, address payer, address recipient, uint256 value) public {
-    if (token == Constants.NATIVE_TOKEN && payer == address(this)) {
-      SafeTransferLib.safeTransferETH(recipient, value);
-    } else {
-      if (payer == address(this)) {
-        SafeTransferLib.safeTransfer(ERC20(token), recipient, value);
-      } else {
-        SafeTransferLib.safeTransferFrom(ERC20(token), payer, recipient, value);
-      }
-    }
-  }
-
-  function sweep(address token, address recipient, uint256 amountMinimum) public {
+  function sweep(address token, address recipient, uint256 amountMinimum) public payable {
     if (token == Constants.NATIVE_TOKEN) {
       uint256 balance = address(this).balance;
       require(balance >= amountMinimum, "Error: Insufficient ETH balance");
@@ -83,17 +65,17 @@ abstract contract ModuleBase {
     }
   }
 
-  function sweepERC721(address token, address recipient, uint256 id) public {
+  function sweepERC721(address token, address recipient, uint256 id) public payable {
     ERC721(token).safeTransferFrom(address(this), recipient, id);
   }
 
-  function sweepERC1155(address token, address recipient, uint256 id, uint256 amountMinimum) public {
+  function sweepERC1155(address token, address recipient, uint256 id, uint256 amountMinimum) public payable {
     uint256 balance = ERC1155(token).balanceOf(address(this), id);
     require(balance >= amountMinimum, "Error: Insufficient ERC1155 balance");
     ERC1155(token).safeTransferFrom(address(this), recipient, id, balance, bytes(""));
   }
 
-  function payPortion(address token, address recipient, uint256 bips) public {
+  function payPortion(address token, address recipient, uint256 bips) public payable {
     require(bips != 0 && bips <= Constants.BIPS_BASE, "Error: invalid bips");
     if (token == Constants.NATIVE_TOKEN) {
       uint256 balance = address(this).balance;
@@ -106,15 +88,15 @@ abstract contract ModuleBase {
     }
   }
 
-  function checkERC721Owner(address owner, address token, uint256 id) public view {
+  function checkERC721Owner(address token, address owner, uint256 id) public payable {
     require(ERC721(token).ownerOf(id) == owner, "Error: invalid owner for ERC721");
   }
 
-  function checkERC1155Balance(address owner, address token, uint256 id, uint256 minBalance) public view {
+  function checkERC1155Balance(address token, address owner, uint256 id, uint256 minBalance) public payable {
     require(ERC1155(token).balanceOf(owner, id) >= minBalance, "Error: invalid balance for ERC1155");
   }
 
-  function checkERC20Balance(address owner, address token, uint256 minBalance) public view {
+  function checkERC20Balance(address token, address owner, uint256 minBalance) public payable {
     require(ERC20(token).balanceOf(owner) >= minBalance, "Error: invalid balance for ERC20");
   }
 }
