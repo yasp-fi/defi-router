@@ -25,6 +25,8 @@ contract StargateModule is ModuleBase {
   mapping(address => address) internal tokenToPool;
   mapping(address => StakePool) internal poolToStakingId;
 
+  event Pool(address token);
+
   ///@notice Stargate module uses custom wrapper for ETH, called SGETH
   constructor(address factory_, address router_, address lpStaking, address sgeth) ModuleBase(sgeth) {
     factory = IStargateFactory(factory_);
@@ -36,8 +38,9 @@ contract StargateModule is ModuleBase {
   function cachePoolIds() public {
     uint256 poolsCount = factory.allPoolsLength();
     for (uint256 poolId = 0; poolId < poolsCount; poolId++) {
-      IStargatePool pool = factory.getPool(poolId);
-      tokenToPool[pool.token()] = address(pool);
+      address poolAddr = factory.allPools(poolId);
+      IStargatePool pool = IStargatePool(poolAddr);
+      tokenToPool[pool.token()] = poolAddr;
     }
 
     uint256 stakePoolsCount = staking.poolLength();
@@ -47,48 +50,46 @@ contract StargateModule is ModuleBase {
     }
   }
 
-  function getPool(address token) public view returns (IStargatePool) {
+  function getPool(address token) public returns (IStargatePool) {
     address poolAddr = tokenToPool[token];
+    emit Pool(token);
     require(poolAddr != address(0), "Error: pool doesn't exists");
     return IStargatePool(poolAddr);
   }
 
   function addLiquidity(address token, uint256 amount) public payable returns (uint256 ret) {
-    if (token == Constants.NATIVE_TOKEN && amount == msg.value) {
-      amount = wrapETH(amount);
-      token = address(WETH9);
-    }
+    bool useNative = token == Constants.NATIVE_TOKEN;
+    amount = useNative ? wrapETH(amount) : amount;
+    token = useNative ? address(WETH9) : token;
 
     IStargatePool pool = getPool(token);
 
     uint256 balanceBefore = balanceOf(address(pool), 0);
-
     router.addLiquidity(pool.poolId(), amount, address(this));
-
     ret = balanceOf(address(pool), 0) - balanceBefore;
+    
+    _sweepToken(address(pool));
   }
 
   function removeLiquidity(address token, uint256 amount) public payable returns (uint256 ret) {
     bool useNative = token == Constants.NATIVE_TOKEN && amount == msg.value;
-    if (useNative) {
-      token = address(WETH9);
-    }
+    token = useNative ? address(WETH9) : token;
+
     uint16 poolId = uint16(getPool(token).poolId());
     uint256 lpAmount = LDtoLP(token, amount);
-    ret = router.instantRedeemLocal(poolId, lpAmount, address(this));
-
-    if (useNative) {
-      unwrapWETH9(amount);
-    }
+    router.instantRedeemLocal(poolId, lpAmount, address(this));
+    ret = useNative ? unwrapWETH9(amount) : amount;
+    
+    _sweepToken(token);
   }
 
   function stake(address token, uint256 amount) public payable {
     address poolAddr = address(getPool(token));
     require(poolToStakingId[poolAddr].exists, "Error: staking pool doesn't exists");
-    
+
     uint256 stakingId = uint256(poolToStakingId[poolAddr].stakingId);
 
-    bytes memory data = abi.encodeWithSelector(staking.deposit.selector, stakingId, amount);
+    bytes memory data = abi.encodeWithSelector(staking.deposit.selector, stakingId, LDtoLP(token, amount));
     data.exec(address(staking), type(uint256).max);
   }
 
@@ -98,11 +99,11 @@ contract StargateModule is ModuleBase {
 
     uint256 stakingId = uint256(poolToStakingId[poolAddr].stakingId);
 
-    bytes memory data = abi.encodeWithSelector(staking.withdraw.selector, stakingId, amount);
+    bytes memory data = abi.encodeWithSelector(staking.withdraw.selector, stakingId, LDtoLP(token, amount));
     data.exec(address(staking), type(uint256).max);
   }
 
-  function LDtoLP(address token, uint256 amount) internal view returns (uint256) {
+  function LDtoLP(address token, uint256 amount) internal returns (uint256) {
     IStargatePool pool = getPool(token);
     uint256 convertRate = pool.convertRate();
     uint256 totalSupply = pool.convertRate();
