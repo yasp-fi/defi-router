@@ -33,12 +33,12 @@ abstract contract ModuleBase {
       ? address(this).balance
       : IERC20(token).balanceOf(address(this));
 
-    require(balance >= minAmount, "Error: insufficient token balance");
-
-    if (minAmount != type(uint256).max) {
-      return minAmount;
+    if (minAmount == type(uint256).max) {
+      return balance;
     }
-    return balance;
+
+    require(balance >= minAmount, "Error: insufficient token balance");
+    return minAmount;
   }
 
   function wrapETH(uint256 amount) public payable returns (uint256 wappedAmount) {

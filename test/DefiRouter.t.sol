@@ -29,6 +29,7 @@ contract DefiRouterTest is Test {
 
   Permit2Module public permit2Module;
   AaveV3Module public aaveModule;
+  StargateRegistry public stargateRegistry;
   StargateModule public stargateModule;
   CurveModule public curveModule;
 
@@ -73,7 +74,9 @@ contract DefiRouterTest is Test {
 
     permit2Module = new Permit2Module(PERMIT2, WETH);
     aaveModule = new AaveV3Module(AAVE_POOL, WETH);
-    stargateModule = new StargateModule(STARGATE_FACTORY, STARGATE_ROUTER, STARGATE_STAKING, SGETH);
+
+    stargateRegistry = new StargateRegistry(STARGATE_FACTORY, STARGATE_STAKING);
+    stargateModule = new StargateModule(address(stargateRegistry), STARGATE_ROUTER, SGETH);
     curveModule = new CurveModule(WETH);
 
     vm.startPrank(OWNER);
@@ -169,7 +172,7 @@ contract DefiRouterTest is Test {
     modules[0] = address(stargateModule);
     modules[1] = address(stargateModule);
     bytes32[] memory configs = new bytes32[](2);
-    configs[0] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
+    configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
     configs[1] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
     bytes[] memory payloads = new bytes[](2);
     payloads[0] = abi.encodeWithSelector(StargateModule.addLiquidity.selector, Constants.NATIVE_TOKEN, ethValue);
