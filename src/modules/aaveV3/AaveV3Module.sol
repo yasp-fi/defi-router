@@ -20,20 +20,22 @@ contract AaveV3Module is ModuleBase {
     return data.aTokenAddress;
   }
 
-  function supply(address asset, address receiver, uint256 value) public payable {
-    uint256 balance = IERC20(asset).balanceOf(address(this));
-    require(balance >= value, "Error: insufficient amount of ERC20 token");
+  function supply(address asset, uint256 value) public payable returns (uint256 suppliedAmount) {
+    value = balanceOf(asset, value);
 
     IERC20(asset).approve(address(AAVE), value);
-    AAVE.supply(asset, value, receiver, REFFERAL_CODE);
+    AAVE.supply(asset, value, address(this), REFFERAL_CODE);
+
+    suppliedAmount = value;
+
+    _sweepToken(getAToken(asset));
   }
 
-  function withdraw(address asset, address receiver, uint256 value) public payable returns (uint256 withdrawAmount) {
-    address aToken = getAToken(asset);
+  function withdraw(address asset, uint256 value) public payable returns (uint256 withdrawAmount) {
+    value = balanceOf(getAToken(asset), value);
 
-    uint256 balance = IERC20(aToken).balanceOf(address(this));
-    require(balance >= value, "Error: insufficient amount of ERC20 token");
+    withdrawAmount = AAVE.withdraw(asset, value, address(this));
 
-    withdrawAmount = AAVE.withdraw(asset, value, receiver);
+    _sweepToken(asset);
   }
 }

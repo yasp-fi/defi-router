@@ -31,6 +31,7 @@ contract Permit2Module is ModuleBase {
   ) public payable {
     require(details.to == address(this), "Error: ToAddressIsNotRouter");
     PERMIT2.permitTransferFrom(permit, details, msg.sender, signature);
+    _sweepToken(permit.permitted.token);
   }
 
   function permitTransferBatch(
@@ -40,6 +41,7 @@ contract Permit2Module is ModuleBase {
   ) public payable {
     for (uint256 i = 0; i < details.length; ++i) {
       require(details[i].to == address(this), "Error: ToAddressIsNotRouter");
+      _sweepToken(permit.permitted[i].token);
     }
     PERMIT2.permitTransferFrom(permit, details, msg.sender, signature);
   }

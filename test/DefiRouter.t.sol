@@ -22,9 +22,11 @@ contract DefiRouterTest is Test {
   Permit2Module public permit2Module;
   AaveV3Module public aaveModule;
 
-  modifier withActor(address actor, uint256 ethValue) {
-    vm.assume(10e18 > ethValue && ethValue > 10e15);
-    vm.deal(actor, ethValue);
+  modifier withActor(address actor, uint64 ethValue) {
+    vm.assume(ethValue > 1e8);
+    vm.assume(actor != address(0));
+
+    vm.deal(actor, uint256(ethValue));
     vm.startPrank(actor);
     _;
     vm.stopPrank();
@@ -79,38 +81,35 @@ contract DefiRouterTest is Test {
     assertEq(LibConfig.buildStatic(5), bytes32(0x0005000000000000000000000000000000000000000000000000000000000000));
   }
 
-  function test_base(address user, uint256 ethValue) public withActor(user, ethValue) {
-    address[] memory modules = new address[](4);
+  function test_base(address user, uint64 ethValue) public withActor(user, ethValue) {
+    address[] memory modules = new address[](3);
     modules[0] = address(aaveModule);
     modules[1] = address(aaveModule);
     modules[2] = address(aaveModule);
-    modules[3] = address(aaveModule);
-    bytes32[] memory configs = new bytes32[](4);
+    bytes32[] memory configs = new bytes32[](3);
     configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
-    configs[1] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
-    configs[3] = bytes32(0x0100000000000000000400ffffffffffffffffffffffffffffffffffffffffff);
-    bytes[] memory payloads = new bytes[](4);
-    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, address(router), ethValue);
-    payloads[1] = abi.encodeWithSelector(ModuleBase.payPortion.selector, WETH, user, Constants.BIPS_BASE / 2);
-    payloads[2] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, user, Constants.BIPS_BASE / 2);
-    payloads[3] = abi.encodeWithSelector(ModuleBase.checkERC20Balance.selector, WETH, user, Constants.BIPS_BASE / 2);
+    configs[1] = bytes32(0x0100000000000000000400ffffffffffffffffffffffffffffffffffffffffff);
+    configs[2] = bytes32(0x0100000000000000000100ffffffffffffffffffffffffffffffffffffffffff);
+    bytes[] memory payloads = new bytes[](3);
+    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, uint256(ethValue));
+    payloads[1] = abi.encodeWithSelector(ModuleBase.pay.selector, WETH, OWNER, Constants.BIPS_BASE / 4);
+    payloads[2] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, Constants.BIPS_BASE / 2);
 
-    router.execute{ value: ethValue }(modules, configs, payloads);
+    router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
   }
 
-  function test_permit2(uint256 ethValue) public {
-    uint256 privateKey = 0x123456789abcdef;
+  function test_permit2(uint64 privateKey, uint64 ethValue) public {
+    vm.assume(privateKey > 1e8);
     address actor = vm.addr(privateKey);
 
-    vm.assume(10e18 > ethValue && ethValue > 10e15);
-    vm.deal(actor, ethValue);
+    vm.assume(ethValue > 1e8);
+    deal(WETH, actor, ethValue);
 
     IPermit2.SignatureTransferDetails memory details =
-      ISignatureTransfer.SignatureTransferDetails({ to: address(router), requestedAmount: ethValue });
+      ISignatureTransfer.SignatureTransferDetails({ to: address(router), requestedAmount: uint256(ethValue) });
 
     IPermit2.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-      permitted: ISignatureTransfer.TokenPermissions({ token: WETH, amount: ethValue }),
+      permitted: ISignatureTransfer.TokenPermissions({ token: WETH, amount: uint256(ethValue) }),
       deadline: block.timestamp + 100,
       nonce: 0
     });
@@ -118,49 +117,40 @@ contract DefiRouterTest is Test {
     bytes memory sig =
       getPermitTransferSignature(permit, address(router), privateKey, IPermit2(PERMIT2).DOMAIN_SEPARATOR());
 
-    address[] memory modules = new address[](4);
+    address[] memory modules = new address[](2);
     modules[0] = address(permit2Module);
     modules[1] = address(permit2Module);
-    modules[2] = address(permit2Module);
-    modules[3] = address(permit2Module);
-    bytes32[] memory configs = new bytes32[](4);
+    bytes32[] memory configs = new bytes32[](2);
     configs[0] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
     configs[1] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    configs[2] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    configs[3] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    bytes[] memory payloads = new bytes[](4);
-    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, actor, ethValue);
-    payloads[1] = abi.encodeWithSelector(Permit2Module.permitTransfer.selector, permit, details, sig);
-    payloads[2] = abi.encodeWithSelector(ModuleBase.sweep.selector, WETH, actor, ethValue);
-    payloads[3] = abi.encodeWithSelector(ModuleBase.checkERC20Balance.selector, WETH, actor, ethValue);
+    bytes[] memory payloads = new bytes[](2);
+    payloads[0] = abi.encodeWithSelector(Permit2Module.permitTransfer.selector, permit, details, sig);
+    payloads[1] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, uint256(ethValue));
 
     vm.startPrank(actor);
     IERC20(WETH).approve(PERMIT2, type(uint256).max);
-    router.execute{ value: ethValue }(modules, configs, payloads);
+    router.execute{ value: 0 }(modules, configs, payloads);
     vm.stopPrank();
   }
 
-  function test_aave(address user, uint256 ethValue) public withActor(user, ethValue) {
-    address[] memory modules = new address[](4);
+  function test_aave(address user, uint64 ethValue) public withActor(user, ethValue) {
+    address[] memory modules = new address[](3);
     modules[0] = address(aaveModule);
     modules[1] = address(aaveModule);
     modules[2] = address(aaveModule);
-    modules[3] = address(aaveModule);
-    bytes32[] memory configs = new bytes32[](4);
+    bytes32[] memory configs = new bytes32[](3);
     configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
-    configs[1] = bytes32(0x0100000000000000000400ffffffffffffffffffffffffffffffffffffffffff);
-    configs[2] = bytes32(0x0100000000000000000400ffffffffffffffffffffffffffffffffffffffffff);
-    configs[3] = bytes32(0x0100000000000000000400ffffffffffffffffffffffffffffffffffffffffff);
-    bytes[] memory payloads = new bytes[](4);
-    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, address(router), ethValue);
-    payloads[1] = abi.encodeWithSelector(AaveV3Module.supply.selector, WETH, address(router), Constants.BIPS_BASE);
-    payloads[2] = abi.encodeWithSelector(AaveV3Module.withdraw.selector, WETH, user, Constants.BIPS_BASE);
-    payloads[3] = abi.encodeWithSelector(ModuleBase.checkERC20Balance.selector, WETH, user, Constants.BIPS_BASE);
+    configs[1] = bytes32(0x0101000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
+    configs[2] = bytes32(0x0100000000000000000201ffffffffffffffffffffffffffffffffffffffffff);
+    bytes[] memory payloads = new bytes[](3);
+    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, uint256(ethValue));
+    payloads[1] = abi.encodeWithSelector(AaveV3Module.supply.selector, WETH, Constants.BIPS_BASE / 2);
+    payloads[2] = abi.encodeWithSelector(AaveV3Module.withdraw.selector, WETH, Constants.BIPS_BASE / 2);
 
-    router.execute{ value: ethValue }(modules, configs, payloads);
+    router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
   }
 
-  function test_stargate(address user, uint256 ethValue) public withActor(user, ethValue) { }
+  function test_stargate(address user, uint64 ethValue) public withActor(user, ethValue) { }
 
-  function test_curve(address user, uint256 ethValue) public withActor(user, ethValue) { }
+  // function test_curve(address user, uint256 ethValue) public withActor(user, ethValue) { }
 }
