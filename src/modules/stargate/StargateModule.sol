@@ -21,7 +21,7 @@ contract StargateModule is ModuleBase {
     registry = StargateRegistry(registry_);
   }
 
-  function addLiquidity(address token, uint256 amount) public payable returns (uint256) {
+  function deposit(address token, uint256 amount) public payable returns (uint256) {
     bool useNative = token == Constants.NATIVE_TOKEN;
     amount = useNative ? wrapETH(amount) : amount;
     token = useNative ? address(WETH9) : token;
@@ -37,7 +37,7 @@ contract StargateModule is ModuleBase {
     return balanceOf(address(pool), type(uint256).max) - balanceBefore;
   }
 
-  function removeLiquidity(address token, uint256 amount) public payable returns (uint256) {
+  function withdraw(address token, uint256 amount) public payable returns (uint256) {
     bool useNative = token == Constants.NATIVE_TOKEN;
     token = useNative ? address(WETH9) : token;
 

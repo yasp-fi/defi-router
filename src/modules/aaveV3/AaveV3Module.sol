@@ -15,27 +15,38 @@ contract AaveV3Module is ModuleBase {
     AAVE = IPool(lendingPool);
   }
 
-  function getAToken(address asset) internal view returns (address aTokenAddress) {
-    IPool.ReserveData memory data = AAVE.getReserveData(asset);
+  function getAToken(address token) internal view returns (address aTokenAddress) {
+    IPool.ReserveData memory data = AAVE.getReserveData(token);
     return data.aTokenAddress;
   }
 
-  function supply(address asset, uint256 value) public payable returns (uint256 suppliedAmount) {
-    value = balanceOf(asset, value);
+  function deposit(address token, uint256 amount) public payable returns (uint256 suppliedAmount) {
+    if (token == Constants.NATIVE_TOKEN) {
+      amount = wrapETH(amount);
+      token = address(WETH9);
+    }
+    amount = balanceOf(token, amount);
 
-    IERC20(asset).approve(address(AAVE), value);
-    AAVE.supply(asset, value, address(this), REFFERAL_CODE);
+    IERC20(token).approve(address(AAVE), amount);
+    AAVE.supply(token, amount, address(this), REFFERAL_CODE);
 
-    suppliedAmount = value;
+    suppliedAmount = amount;
 
-    _sweepToken(getAToken(asset));
+    _sweepToken(getAToken(token));
   }
 
-  function withdraw(address asset, uint256 value) public payable returns (uint256 withdrawAmount) {
-    value = balanceOf(getAToken(asset), value);
+  function withdraw(address token, uint256 amount) public payable returns (uint256 withdrawAmount) {
+    if (token == Constants.NATIVE_TOKEN) {
+      token = address(WETH9);
+    }
+    amount = balanceOf(getAToken(token), amount);
 
-    withdrawAmount = AAVE.withdraw(asset, value, address(this));
+    withdrawAmount = AAVE.withdraw(token, amount, address(this));
 
-    _sweepToken(asset);
+    if (token == Constants.NATIVE_TOKEN) {
+      withdrawAmount = unwrapWETH9(amount);
+    }
+
+    _sweepToken(token);
   }
 }

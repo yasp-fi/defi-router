@@ -230,7 +230,7 @@ contract CurveModule is ModuleBase {
     internal
     returns (uint256, uint256)
   {
-    uint256 balanceBefore = balanceOf(tokenI, 0);
+    uint256 balanceBefore = balanceOf(tokenI, type(uint256).max);
     lpTokenAmount = balanceOf(lpToken, lpTokenAmount);
     SafeTransferLib.safeApprove(ERC20(lpToken), curvePool, lpTokenAmount);
 
@@ -245,7 +245,7 @@ contract CurveModule is ModuleBase {
     // allowance since lpToken token was issued by the lpToken that don't need to
     // call transferFrom(). So set approval to 0 here.
     SafeTransferLib.safeApprove(ERC20(lpToken), curvePool, 0);
-    uint256 balance = balanceOf(tokenI, 0);
+    uint256 balance = balanceOf(tokenI, type(uint256).max);
     require(balance > balanceBefore, "Error: after <= before");
 
     _sweepToken(tokenI);

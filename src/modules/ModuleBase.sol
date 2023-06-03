@@ -60,6 +60,17 @@ abstract contract ModuleBase {
     unwrappedAmount = amount;
   }
 
+  function pull(address token, uint256 amount) public payable {
+    SafeTransferLib.safeTransferFrom(ERC20(token), msg.sender, address(this), amount);
+  }
+
+  function pullBatch(address[] memory tokens, uint256[] memory amounts) public payable {
+    require(tokens.length == amounts.length);
+    for (uint256 i = 0; i < tokens.length; i++) {
+      pull(tokens[i], amounts[i]);
+    }
+  }
+
   function pay(address token, address recipient, uint256 amount) public payable {
     amount = balanceOf(token, amount);
     if (token == Constants.NATIVE_TOKEN) {

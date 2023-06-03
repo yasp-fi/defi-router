@@ -4,8 +4,11 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../src/DefiRouter.sol";
 import "../src/modules/permit2/Permit2Module.sol";
+import "../src/modules/erc4626/ERC4626Module.sol";
 import "../src/modules/aaveV3/AaveV3Module.sol";
 import "../src/modules/stargate/StargateModule.sol";
+import "../src/modules/stargate/StargateVault.sol";
+import "../src/modules/stargate/StargateRegistry.sol";
 import "../src/modules/curve/CurveModule.sol";
 
 ///@dev Fork E2E Tests, uses Arbitrum fork
@@ -14,10 +17,12 @@ contract DefiRouterTest is Test {
 
   address public WETH = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
   address public SGETH = address(0x82CbeCF39bEe528B5476FE6d1550af59a9dB6Fc0);
+  address public STG = address(0x6694340fc020c5E6B96567843da2df01b2CE1eb6);
   address public USDC = address(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
 
   address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
   address public AAVE_POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
+  address public STARGATE_ETH_POOL = address(0x915A55e36A01285A14f05dE6e81ED9cE89772f8e);
   address public STARGATE_FACTORY = address(0x55bDb4164D28FBaF0898e0eF14a589ac09Ac9970);
   address public STARGATE_ROUTER = address(0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614);
   address public STARGATE_STAKING = address(0xeA8DfEE1898a7e0a59f7527F076106d7e44c2176);
@@ -28,9 +33,15 @@ contract DefiRouterTest is Test {
   DefiRouter public router;
 
   Permit2Module public permit2Module;
+
+  ERC4626Module public erc4626Module;
+
   AaveV3Module public aaveModule;
+
   StargateRegistry public stargateRegistry;
+  StargateVault public stargateVault;
   StargateModule public stargateModule;
+
   CurveModule public curveModule;
 
   modifier withActor(address actor, uint64 ethValue) {
@@ -74,13 +85,16 @@ contract DefiRouterTest is Test {
 
     permit2Module = new Permit2Module(PERMIT2, WETH);
     aaveModule = new AaveV3Module(AAVE_POOL, WETH);
+    erc4626Module = new ERC4626Module(WETH);
 
     stargateRegistry = new StargateRegistry(STARGATE_FACTORY, STARGATE_STAKING);
+    stargateVault = new StargateVault(address(stargateRegistry), ERC20(STARGATE_ETH_POOL), ERC20(STG), "", "");
     stargateModule = new StargateModule(address(stargateRegistry), STARGATE_ROUTER, SGETH);
     curveModule = new CurveModule(WETH);
 
     vm.startPrank(OWNER);
     registry.registerModule(address(permit2Module), bytes1(0x01));
+    registry.registerModule(address(erc4626Module), bytes1(0x01));
     registry.registerModule(address(aaveModule), bytes1(0x01));
     registry.registerModule(address(stargateModule), bytes1(0x01));
     registry.registerModule(address(curveModule), bytes1(0x01));
@@ -99,18 +113,22 @@ contract DefiRouterTest is Test {
   }
 
   function test_base(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address[] memory modules = new address[](3);
+    IERC20(WETH).approve(address(router), type(uint256).max);
+    address[] memory modules = new address[](4);
     modules[0] = address(aaveModule);
     modules[1] = address(aaveModule);
     modules[2] = address(aaveModule);
-    bytes32[] memory configs = new bytes32[](3);
+    modules[3] = address(aaveModule);
+    bytes32[] memory configs = new bytes32[](4);
     configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
     configs[1] = bytes32(0x0100000000000000000400ffffffffffffffffffffffffffffffffffffffffff);
-    configs[2] = bytes32(0x0100000000000000000100ffffffffffffffffffffffffffffffffffffffffff);
-    bytes[] memory payloads = new bytes[](3);
+    configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
+    configs[3] = bytes32(0x0100000000000000000100ffffffffffffffffffffffffffffffffffffffffff);
+    bytes[] memory payloads = new bytes[](4);
     payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, uint256(ethValue));
-    payloads[1] = abi.encodeWithSelector(ModuleBase.pay.selector, WETH, OWNER, Constants.BIPS_BASE / 4);
-    payloads[2] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, Constants.BIPS_BASE / 2);
+    payloads[1] = abi.encodeWithSelector(ModuleBase.pay.selector, WETH, user, Constants.BIPS_BASE / 4);
+    payloads[2] = abi.encodeWithSelector(ModuleBase.pullBatch.selector, [WETH], [Constants.BIPS_BASE / 4]);
+    payloads[3] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, Constants.BIPS_BASE / 2);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
   }
@@ -151,32 +169,35 @@ contract DefiRouterTest is Test {
   }
 
   function test_aave(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address[] memory modules = new address[](3);
+    address[] memory modules = new address[](2);
     modules[0] = address(aaveModule);
     modules[1] = address(aaveModule);
-    modules[2] = address(aaveModule);
-    bytes32[] memory configs = new bytes32[](3);
+    bytes32[] memory configs = new bytes32[](2);
     configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
-    configs[1] = bytes32(0x0101000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
-    configs[2] = bytes32(0x0100000000000000000201ffffffffffffffffffffffffffffffffffffffffff);
-    bytes[] memory payloads = new bytes[](3);
-    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, uint256(ethValue));
-    payloads[1] = abi.encodeWithSelector(AaveV3Module.supply.selector, WETH, Constants.BIPS_BASE / 2);
-    payloads[2] = abi.encodeWithSelector(AaveV3Module.withdraw.selector, WETH, Constants.BIPS_BASE / 2);
+    configs[1] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
+    bytes[] memory payloads = new bytes[](2);
+    payloads[0] = abi.encodeWithSelector(AaveV3Module.deposit.selector, Constants.NATIVE_TOKEN, ethValue);
+    payloads[1] = abi.encodeWithSelector(AaveV3Module.withdraw.selector, Constants.NATIVE_TOKEN, Constants.BIPS_BASE / 2);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
   }
 
   function test_stargate(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address[] memory modules = new address[](2);
+    address[] memory modules = new address[](4);
     modules[0] = address(stargateModule);
-    modules[1] = address(stargateModule);
-    bytes32[] memory configs = new bytes32[](2);
+    modules[1] = address(erc4626Module);
+    modules[2] = address(erc4626Module);
+    modules[3] = address(stargateModule);
+    bytes32[] memory configs = new bytes32[](4);
     configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
-    configs[1] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    bytes[] memory payloads = new bytes[](2);
-    payloads[0] = abi.encodeWithSelector(StargateModule.addLiquidity.selector, Constants.NATIVE_TOKEN, ethValue);
-    payloads[1] = abi.encodeWithSelector(StargateModule.removeLiquidity.selector, Constants.NATIVE_TOKEN, ethValue);
+    configs[1] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
+    configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
+    configs[3] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
+    bytes[] memory payloads = new bytes[](4);
+    payloads[0] = abi.encodeWithSelector(StargateModule.deposit.selector, Constants.NATIVE_TOKEN, ethValue);
+    payloads[1] = abi.encodeWithSelector(ERC4626Module.deposit.selector, stargateVault, Constants.BIPS_BASE);
+    payloads[2] = abi.encodeWithSelector(ERC4626Module.withdraw.selector, stargateVault, Constants.BIPS_BASE);
+    payloads[3] = abi.encodeWithSelector(StargateModule.withdraw.selector, Constants.NATIVE_TOKEN, ethValue);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
   }
