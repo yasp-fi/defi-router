@@ -11,13 +11,12 @@ abstract contract ERC4626Staking is ERC4626 {
   uint256 public rewardRate = 0;
   uint256 public lastUpdateTime = 0;
   uint256 public rewardPerTokenStored = 0;
-  uint256 public pendingRewards = 0;
 
   mapping(address => uint256) public userRewardPerTokenPaid;
   mapping(address => uint256) public rewards;
 
   event UpdateRewards(uint256 newRewards);
-  event CollectRewards(address indexed user, uint256 reward);
+  event CollectRewards(address indexed user, address indexed recipient, uint256 reward);
 
   modifier updateReward(address account) {
     rewardPerTokenStored = rewardPerToken();
@@ -60,22 +59,78 @@ abstract contract ERC4626Staking is ERC4626 {
     return rewardRate * DURATION;
   }
 
-  function collectRewards(address user) public updateReward(user) {
-    uint256 reward = rewards[user];
+  function collectRewards(address owner) public updateReward(owner) returns (uint256) {
+    uint256 reward = rewards[owner];
     if (reward > 0) {
-      rewards[user] = 0;
-      rewardsToken.transfer(user, reward);
-      emit CollectRewards(user, reward);
+      rewards[owner] = 0;
+      rewardsToken.transfer(owner, reward);
+      emit CollectRewards(owner, owner, reward);
     }
+    return reward;
   }
 
-  function onNewRewards(uint256 newRewards) internal {
-    pendingRewards += newRewards;
+  function deposit(uint256 assets, address receiver)
+    public
+    override
+    updateReward(msg.sender)
+    updateReward(receiver)
+    returns (uint256 shares)
+  {
+    shares = super.deposit(assets, receiver);
   }
 
-  function updateRewards() public updateReward(address(0)) {
-    uint256 reward = pendingRewards;
-    require(reward > 0, "Zero rewards");
+  function mint(uint256 shares, address receiver)
+    public
+    override
+    updateReward(msg.sender)
+    updateReward(receiver)
+    returns (uint256 assets)
+  {
+    assets = super.mint(shares, receiver);
+  }
+
+  function withdraw(uint256 assets, address receiver, address owner)
+    public
+    override
+    updateReward(owner)
+    updateReward(receiver)
+    returns (uint256 shares)
+  {
+    shares = super.withdraw(assets, receiver, owner);
+  }
+
+  function redeem(uint256 shares, address receiver, address owner)
+    public
+    override
+    updateReward(owner)
+    updateReward(receiver)
+    returns (uint256 assets)
+  {
+    assets = super.redeem(shares, receiver, owner);
+  }
+
+  function transfer(address receiver, uint256 amount)
+    public
+    override
+    updateReward(msg.sender)
+    updateReward(receiver)
+    returns (bool)
+  {
+    return super.transfer(receiver, amount);
+  }
+
+  function transferFrom(address sender, address receiver, uint256 amount)
+    public
+    override
+    updateReward(sender)
+    updateReward(receiver)
+    returns (bool)
+  {
+    return super.transferFrom(sender, receiver, amount);
+  }
+
+  function _addRewards(uint256 reward) internal updateReward(address(0)) {
+    if (reward == 0) return;
 
     if (block.timestamp >= periodFinish) {
       rewardRate = reward / DURATION;
@@ -85,15 +140,11 @@ abstract contract ERC4626Staking is ERC4626 {
       rewardRate = (reward + leftover) / DURATION;
     }
 
-    // This keeps the reward rate in the right range, preventing overflows due to
-    // very high values of rewardRate in the earned and rewardsPerToken functions;
-    // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
     uint256 balance = rewardsToken.balanceOf(address(this));
     require(rewardRate <= balance / DURATION, "Provided reward too high");
 
     lastUpdateTime = block.timestamp;
     periodFinish = block.timestamp + DURATION;
-    pendingRewards = 0;
     emit UpdateRewards(reward);
   }
 }

@@ -2,21 +2,22 @@
 pragma solidity ^0.8.13;
 
 import "../../utils/ERC4626Staking.sol";
+import "./IStargateLPStaking.sol";
 import "./StargateRegistry.sol";
 
 contract StargateVault is ERC4626Staking {
-  StargateRegistry public registry;
+  IStargateLPStaking public staking;
   uint256 public poolStakingId;
 
   constructor(address registry_, ERC20 token, ERC20 reward_, string memory name_, string memory symbol_)
     ERC4626Staking(token, reward_, name_, symbol_)
   {
-    registry = StargateRegistry(registry_);
-    poolStakingId = registry.getStakingId(address(token));
+    staking = StargateRegistry(registry_).staking();
+    poolStakingId = StargateRegistry(registry_).getStakingId(address(token));
   }
 
   function totalAssets() public view override returns (uint256) {
-    IStargateLPStaking.UserInfo memory info = registry.staking().userInfo(poolStakingId, address(this));
+    IStargateLPStaking.UserInfo memory info = staking.userInfo(poolStakingId, address(this));
     return info.amount;
   }
 
@@ -26,9 +27,9 @@ contract StargateVault is ERC4626Staking {
     /// -----------------------------------------------------------------------
     uint256 balanceBefore = rewardsToken.balanceOf(address(this));
 
-    registry.staking().withdraw(poolStakingId, assets);
+    staking.withdraw(poolStakingId, assets);
 
-    onNewRewards(rewardsToken.balanceOf(address(this)) - balanceBefore);
+    _addRewards(rewardsToken.balanceOf(address(this)) - balanceBefore);
 
     return super.beforeWithdraw(assets, shares);
   }
@@ -38,16 +39,17 @@ contract StargateVault is ERC4626Staking {
     /// Deposit assets into Stargate
     /// -----------------------------------------------------------------------
     uint256 balanceBefore = rewardsToken.balanceOf(address(this));
-    
-    registry.staking().deposit(poolStakingId, assets);
 
-    onNewRewards(rewardsToken.balanceOf(address(this)) - balanceBefore);
+    asset.approve(address(staking), assets);
+    staking.deposit(poolStakingId, assets);
+
+    _addRewards(rewardsToken.balanceOf(address(this)) - balanceBefore);
 
     super.afterDeposit(assets, shares);
   }
 
   function maxWithdraw(address owner_) public view override returns (uint256) {
-    uint256 cash = asset.balanceOf(address(registry.staking()));
+    uint256 cash = asset.balanceOf(address(staking));
 
     uint256 assetsBalance = convertToAssets(this.balanceOf(owner_));
 
@@ -55,7 +57,7 @@ contract StargateVault is ERC4626Staking {
   }
 
   function maxRedeem(address owner_) public view override returns (uint256) {
-    uint256 cash = asset.balanceOf(address(registry.staking()));
+    uint256 cash = asset.balanceOf(address(staking));
 
     uint256 cashInShares = convertToShares(cash);
 
