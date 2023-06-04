@@ -18,6 +18,9 @@ contract ERC4626StakingTest is ERC4626Test {
   function setUp() public override {
     rewardToken = new MockERC20("Reward Mock", "RWRD", 18);
     stakeToken = new MockERC20("Token Mock", "TKN", 18);
+    vm.label(address(rewardToken), "RewardToken");
+    vm.label(address(stakeToken), "UnderlyingToken");
+
     vault = new DummyVault(stakeToken, rewardToken, "Dummy Vault", "VLT");
 
     _underlying_ = address(stakeToken);
@@ -27,9 +30,23 @@ contract ERC4626StakingTest is ERC4626Test {
     _unlimitedAmount = false;
   }
 
-  function test_claimRewards(Init memory init) public {
+  function test_claimRewards(Init memory init, uint256 rewardAmount) public {
+    vm.warp(1);
+    vm.assume(rewardAmount > 1e41 && rewardAmount < 1e57);
+
     setUpVault(init);
     address owner = init.user[0];
+
+    rewardToken.mint(address(this), rewardAmount);
+    _approve(address(rewardToken), address(this), _vault_, rewardAmount);
+    DummyVault(address(vault)).addRewards(rewardAmount);
+
+    assertApproxEqAbs(rewardAmount, vault.getRewardForDuration(), rewardAmount / 1e8);
+
+    assertEq(vault.rewardPerToken(), 0);
+    vm.warp(vault.periodFinish());
+    assertGt(vault.rewardPerToken(), 0);
+
     uint256 pendingRewards = vault.pendingReward(owner);
 
     uint256 balanceBefore = rewardToken.balanceOf(owner);
