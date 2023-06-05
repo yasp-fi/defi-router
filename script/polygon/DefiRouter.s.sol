@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import "forge-std/interfaces/IERC20.sol";
-import "../src/DefiRouter.sol";
+import "../../src/DefiRouter.sol";
 
 contract DefiRouterScript is Script {
   address PERMIT2 = address(vm.envAddress("PERMIT2"));

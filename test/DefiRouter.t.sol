@@ -50,6 +50,7 @@ contract DefiRouterTest is Test {
     vm.assume(actor != address(0));
 
     vm.deal(actor, uint256(ethValue));
+    vm.label(actor, "Actor");
     vm.startPrank(actor);
     _;
     vm.stopPrank();
@@ -83,6 +84,7 @@ contract DefiRouterTest is Test {
   function setUp() public {
     registry = new Registry(OWNER);
     router = new DefiRouter(address(registry));
+    vm.label(address(router), "DeFiRouter");
 
     permit2Module = new Permit2Module(PERMIT2, WETH);
     aaveModule = new AaveV3Module(AAVE_POOL, WETH);
@@ -91,7 +93,7 @@ contract DefiRouterTest is Test {
     stargateRegistry = new StargateRegistry(STARGATE_FACTORY, STARGATE_STAKING);
     stargateVault = new StargateVault(address(stargateRegistry), ERC20(STARGATE_ETH_POOL), ERC20(STG), "", "");
     stargateModule = new StargateModule(address(stargateRegistry), STARGATE_ROUTER, SGETH);
-    yearnModule = new YearnModule(YEARN_PARTNER_TRACKER, YEARN_REGISTRY, WETH);
+    yearnModule = new YearnModule(YEARN_PARTNER_TRACKER, YEARN_REGISTRY, OWNER, WETH);
 
     vm.startPrank(OWNER);
     registry.registerModule(address(permit2Module), bytes1(0x01));
@@ -128,7 +130,7 @@ contract DefiRouterTest is Test {
     bytes[] memory payloads = new bytes[](4);
     payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, uint256(ethValue));
     payloads[1] = abi.encodeWithSelector(ModuleBase.pay.selector, WETH, user, Constants.BIPS_BASE / 4);
-    payloads[2] = abi.encodeWithSelector(ModuleBase.pullBatch.selector, [WETH], [Constants.BIPS_BASE / 4]);
+    payloads[2] = abi.encodeWithSelector(ModuleBase.pull.selector, WETH, Constants.BIPS_BASE / 4);
     payloads[3] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, Constants.BIPS_BASE / 2);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
@@ -214,12 +216,12 @@ contract DefiRouterTest is Test {
     modules[2] = address(yearnModule);
     bytes32[] memory configs = new bytes32[](3);
     configs[0] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    configs[1] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    configs[2] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
+    configs[1] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
+    configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
     bytes[] memory payloads = new bytes[](3);
     payloads[0] = abi.encodeWithSelector(ModuleBase.pull.selector, CURVE2CRV, ethValue);
     payloads[1] = abi.encodeWithSelector(YearnModule.deposit.selector, CURVE2CRV, ethValue);
-    payloads[2] = abi.encodeWithSelector(YearnModule.withdraw.selector, CURVE2CRV, ethValue);
+    payloads[2] = abi.encodeWithSelector(YearnModule.withdraw.selector, CURVE2CRV, Constants.BIPS_BASE);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
   }

@@ -23,13 +23,14 @@ interface IYVault {
 }
 
 contract YearnModule is ModuleBase {
-  address public immutable PARTNER_ID = address(0x0);
+  address public immutable PARTNER_ID;
   IYPartnerTracker public immutable tracker;
   IYRegistry public immutable registry;
 
-  constructor(address tracker_, address registry_, address weth) ModuleBase(weth) {
+  constructor(address tracker_, address registry_, address partner, address weth) ModuleBase(weth) {
     tracker = IYPartnerTracker(tracker_);
     registry = IYRegistry(registry_);
+    PARTNER_ID = partner;
   }
 
   function deposit(address token, uint256 amount) public payable returns (uint256 sharesAdded) {
@@ -53,7 +54,7 @@ contract YearnModule is ModuleBase {
     
     address vault = registry.latestVault(token);
     amount = balanceOf(vault, amount);
-    
+
     try IYVault(vault).withdraw(amount, address(this)) returns (uint256 amountRemoved_) {
       assets = amountRemoved_;
     } catch {
