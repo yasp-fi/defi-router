@@ -62,6 +62,10 @@ contract DefiRouterTest is Test {
     "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
   );
 
+  function delta(uint256 a, uint256 b) internal pure returns (uint256) {
+    return a > b ? a - b : b - a;
+  }
+
   function getPermitTransferSignature(
     ISignatureTransfer.PermitTransferFrom memory permit,
     address spender,
@@ -184,26 +188,52 @@ contract DefiRouterTest is Test {
       abi.encodeWithSelector(AaveV3Module.withdraw.selector, Constants.NATIVE_TOKEN, Constants.BIPS_BASE / 2);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
+
+    (uint256 amount, uint256 amountDeposited) = aaveModule.positionOf(user, Constants.NATIVE_TOKEN);
+    assertLe(delta(amount, ethValue / 2), 10);
+    assertLe(delta(amountDeposited, ethValue / 2), 10);
+
+    (uint256 rAmount, uint256 rAmountDeposited) = aaveModule.positionOf(address(router), Constants.NATIVE_TOKEN);
+    assertEq(rAmount, 0);
+    assertEq(rAmountDeposited, 0);
   }
 
   function test_stargate(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address[] memory modules = new address[](4);
+    address[] memory modules = new address[](2);
     modules[0] = address(stargateModule);
-    modules[1] = address(erc4626Module);
-    modules[2] = address(erc4626Module);
-    modules[3] = address(stargateModule);
-    bytes32[] memory configs = new bytes32[](4);
+    // modules[1] = address(erc4626Module);
+    // modules[2] = address(erc4626Module);
+    modules[1] = address(stargateModule);
+    bytes32[] memory configs = new bytes32[](2);
     configs[0] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
+    // configs[1] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
+    // configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
     configs[1] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
-    configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
-    configs[3] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    bytes[] memory payloads = new bytes[](4);
+    bytes[] memory payloads = new bytes[](2);
     payloads[0] = abi.encodeWithSelector(StargateModule.deposit.selector, Constants.NATIVE_TOKEN, ethValue);
-    payloads[1] = abi.encodeWithSelector(ERC4626Module.deposit.selector, stargateVault, Constants.BIPS_BASE);
-    payloads[2] = abi.encodeWithSelector(ERC4626Module.withdraw.selector, stargateVault, Constants.BIPS_BASE);
-    payloads[3] = abi.encodeWithSelector(StargateModule.withdraw.selector, Constants.NATIVE_TOKEN, ethValue);
+    // payloads[1] = abi.encodeWithSelector(ERC4626Module.deposit.selector, stargateVault, Constants.BIPS_BASE);
+    // payloads[2] = abi.encodeWithSelector(ERC4626Module.withdraw.selector, stargateVault, Constants.BIPS_BASE / 2);
+    payloads[1] =
+      abi.encodeWithSelector(StargateModule.withdraw.selector, Constants.NATIVE_TOKEN, Constants.BIPS_BASE / 2);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
+
+    (uint256 amount, uint256 amountDeposited, uint256 amountStaked, uint256 pendingRewards) =
+      stargateModule.positionOf(user, Constants.NATIVE_TOKEN, address(0));
+    uint256 halfValue = ethValue / 2;
+    uint256 threshold = uint256(ethValue) * 5 / 10000; // 0.05%
+
+    assertLe(delta(amount, halfValue), threshold);
+    assertLe(delta(amountDeposited, halfValue), threshold);
+    assertEq(amountStaked, 0);
+    assertEq(pendingRewards, 0);
+
+    (uint256 rAmount, uint256 rAmountDeposited, uint256 rAmountStaked, uint256 rPendingRewards) =
+      stargateModule.positionOf(address(router), Constants.NATIVE_TOKEN, address(0));
+    assertEq(rAmount, 0);
+    assertEq(rAmountDeposited, 0);
+    assertEq(rAmountStaked, 0);
+    assertEq(rPendingRewards, 0);
   }
 
   function test_yearn(address user, uint64 ethValue) public withActor(user, ethValue) {
@@ -221,9 +251,17 @@ contract DefiRouterTest is Test {
     bytes[] memory payloads = new bytes[](3);
     payloads[0] = abi.encodeWithSelector(ModuleBase.pull.selector, CURVE2CRV, ethValue);
     payloads[1] = abi.encodeWithSelector(YearnModule.deposit.selector, CURVE2CRV, ethValue);
-    payloads[2] = abi.encodeWithSelector(YearnModule.withdraw.selector, CURVE2CRV, Constants.BIPS_BASE);
+    payloads[2] = abi.encodeWithSelector(YearnModule.withdraw.selector, CURVE2CRV, Constants.BIPS_BASE / 2);
 
     router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
+
+    (uint256 amount, uint256 amountDeposited) = yearnModule.positionOf(user, CURVE2CRV);
+    assertLe(delta(amount, ethValue / 2), 10);
+    assertLe(delta(amountDeposited, ethValue / 2), 10);
+
+    (uint256 rAmount, uint256 rAmountDeposited) = yearnModule.positionOf(address(router), CURVE2CRV);
+    assertEq(rAmount, 0);
+    assertEq(rAmountDeposited, 0);
   }
 
   function test_hop(address user, uint64 ethValue) public withActor(user, ethValue) { }

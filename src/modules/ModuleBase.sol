@@ -28,10 +28,21 @@ abstract contract ModuleBase {
     WETH9 = IWETH9(weth);
   }
 
+  function balanceOf(address token) internal view returns (uint256) {
+    return balanceOf(token, type(uint256).max, address(this));
+  }
+
+  function balanceOf(address token, address owner) internal view returns (uint256) {
+    return balanceOf(token, type(uint256).max, owner);
+  }
+
   function balanceOf(address token, uint256 minAmount) internal view returns (uint256) {
-    uint256 balance = token == address(0) || token == Constants.NATIVE_TOKEN
-      ? address(this).balance
-      : IERC20(token).balanceOf(address(this));
+    return balanceOf(token, minAmount, address(this));
+  }
+
+  function balanceOf(address token, uint256 minAmount, address owner) internal view returns (uint256) {
+    uint256 balance =
+      token == address(0) || token == Constants.NATIVE_TOKEN ? owner.balance : IERC20(token).balanceOf(owner);
 
     if (minAmount == type(uint256).max) {
       return balance;

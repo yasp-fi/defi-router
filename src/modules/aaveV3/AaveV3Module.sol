@@ -20,6 +20,12 @@ contract AaveV3Module is ModuleBase {
     return data.aTokenAddress;
   }
 
+  function positionOf(address user, address token) public view returns (uint256 amount, uint256 amountDeposited) {
+    address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    amount = balanceOf(poolToken, user);
+    amountDeposited = balanceOf(getAToken(poolToken), user);
+  }
+
   function deposit(address token, uint256 amount) public payable returns (uint256 suppliedAmount) {
     if (token == Constants.NATIVE_TOKEN) {
       amount = wrapETH(amount);

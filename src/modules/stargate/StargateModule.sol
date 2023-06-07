@@ -21,6 +21,31 @@ contract StargateModule is ModuleBase {
     registry = StargateRegistry(registry_);
   }
 
+  function positionOf(address user, address token) public view returns (uint256 amount, uint256 amountDeposited) {
+    address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    IStargatePool pool = registry.getPool(poolToken);
+
+    amount = balanceOf(token, user);
+    amountDeposited = balanceOf(address(pool), user);
+    amountDeposited = pool.amountLPtoLD(amountDeposited);
+  }
+
+  function positionOf(address user, address token, address)
+    public
+    view
+    returns (uint256 amount, uint256 amountDeposited, uint256 amountStaked, uint256 pendingRewards)
+  {
+    (amount, amountDeposited) = positionOf(user, token);
+
+    address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    IStargatePool pool = registry.getPool(poolToken);
+    uint256 stakingId = registry.getStakingId(address(pool));
+
+    amountStaked = registry.staking().userInfo(stakingId, user).amount;
+    amountStaked = pool.amountLPtoLD(amountStaked);
+    pendingRewards = registry.staking().pendingStargate(stakingId, user);
+  }
+
   function deposit(address token, uint256 amount) public payable returns (uint256) {
     bool useNative = token == Constants.NATIVE_TOKEN;
     amount = useNative ? wrapETH(amount) : amount;

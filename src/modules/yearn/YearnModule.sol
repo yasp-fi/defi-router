@@ -12,14 +12,22 @@ interface IYPartnerTracker {
 }
 
 interface IYRegistry {
-  function latestVault(address toke) external view returns (address);
+  function latestVault(address token) external view returns (address);
 }
 
 interface IYVault {
   function token() external view returns (address);
+  function pricePerShare() external view returns (uint256);
+  function decimals() external view returns (uint256);
 
   function withdraw(uint256 _shares) external returns (uint256);
   function withdraw(uint256 _shares, address recipient) external returns (uint256);
+}
+
+interface IStakingRewards {
+  function balanceOf(address owner) external view returns (uint256);
+  function pendingReward(address owner) external view returns (uint256);
+  function stakeFor(address recipient, uint256 amount) external;
 }
 
 contract YearnModule is ModuleBase {
@@ -31,6 +39,38 @@ contract YearnModule is ModuleBase {
     tracker = IYPartnerTracker(tracker_);
     registry = IYRegistry(registry_);
     PARTNER_ID = partner;
+  }
+
+  function positionOf(address user, address token) public view returns (uint256 amount, uint256 amountDeposited) {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    address vault = registry.latestVault(token);
+
+    amount = balanceOf(token, user);
+    amountDeposited = balanceOf(vault, user);
+    amountDeposited = convertShareToAsset(token, amountDeposited);
+  }
+
+  function positionOf(address user, address token, address stakingPool)
+    public
+    view
+    returns (uint256 amount, uint256 amountDeposited, uint256 amountStaked, uint256 pendingRewards)
+  {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    (amount, amountDeposited) = positionOf(user, token);
+    amountStaked = IStakingRewards(stakingPool).balanceOf(user);
+    amountStaked = convertShareToAsset(token, amountStaked);
+    pendingRewards = IStakingRewards(stakingPool).pendingReward(user);
+  }
+
+  function depositAndStake(address stakingPool, address token, uint256 amount)
+    public
+    payable
+    returns (uint256 sharesStaked)
+  {
+    address vault = registry.latestVault(token);
+    sharesStaked = deposit(token, amount);
+    IERC20(vault).approve(stakingPool, sharesStaked);
+    IStakingRewards(stakingPool).stakeFor(msg.sender, sharesStaked);
   }
 
   function deposit(address token, uint256 amount) public payable returns (uint256 sharesAdded) {
@@ -51,7 +91,7 @@ contract YearnModule is ModuleBase {
     if (token == Constants.NATIVE_TOKEN) {
       token = address(WETH9);
     }
-    
+
     address vault = registry.latestVault(token);
     amount = balanceOf(vault, amount);
 
@@ -66,5 +106,10 @@ contract YearnModule is ModuleBase {
     }
 
     _sweepToken(IYVault(vault).token());
+  }
+
+  function convertShareToAsset(address token, uint256 amount) internal view returns (uint256) {
+    IYVault vault = IYVault(registry.latestVault(token));
+    return amount * vault.pricePerShare() / 10 ** vault.decimals();
   }
 }
