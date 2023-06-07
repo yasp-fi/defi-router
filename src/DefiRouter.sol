@@ -38,14 +38,6 @@ contract DefiRouter is Executor {
     return registry.isValidModule(module);
   }
 
-  function _validateCallback(address callbackAddr) internal view virtual override returns (bool) {
-    return registry.isValidCallback(callbackAddr);
-  }
-
-  function _getCallackTarget(address callbackAddr) internal view virtual override returns (address) {
-    return address(bytes20(registry.callbacks(callbackAddr)));
-  }
-
   function _beforeExecute() internal { }
 
   function _afterExecute() internal {

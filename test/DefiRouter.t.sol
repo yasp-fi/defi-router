@@ -132,7 +132,7 @@ contract DefiRouterTest is Test {
     configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
     configs[3] = bytes32(0x0100000000000000000100ffffffffffffffffffffffffffffffffffffffffff);
     bytes[] memory payloads = new bytes[](4);
-    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, uint256(ethValue));
+    payloads[0] = abi.encodeWithSelector(ModuleBase.wrapETH.selector, type(uint256).max);
     payloads[1] = abi.encodeWithSelector(ModuleBase.pay.selector, WETH, user, Constants.BIPS_BASE / 4);
     payloads[2] = abi.encodeWithSelector(ModuleBase.pull.selector, WETH, Constants.BIPS_BASE / 4);
     payloads[3] = abi.encodeWithSelector(ModuleBase.unwrapWETH9.selector, Constants.BIPS_BASE / 2);

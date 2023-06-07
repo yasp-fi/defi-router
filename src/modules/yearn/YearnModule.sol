@@ -15,6 +15,10 @@ interface IYRegistry {
   function latestVault(address token) external view returns (address);
 }
 
+interface IYStakingRegistry {
+  function stakingPool(address vault) external view returns (address);
+}
+
 interface IYVault {
   function token() external view returns (address);
   function pricePerShare() external view returns (uint256);
@@ -28,17 +32,31 @@ interface IStakingRewards {
   function balanceOf(address owner) external view returns (uint256);
   function pendingReward(address owner) external view returns (uint256);
   function stakeFor(address recipient, uint256 amount) external;
+  function withdraw(uint256 amount) external;
+  function getReward() external;
 }
 
 contract YearnModule is ModuleBase {
-  address public immutable PARTNER_ID;
+  address public immutable partnerAddress;
   IYPartnerTracker public immutable tracker;
   IYRegistry public immutable registry;
+  address public immutable stakeRegistry;
 
-  constructor(address tracker_, address registry_, address partner, address weth) ModuleBase(weth) {
+  constructor(address tracker_, address registry_, address stakeRegistry_, address partner, address weth)
+    ModuleBase(weth)
+  {
     tracker = IYPartnerTracker(tracker_);
     registry = IYRegistry(registry_);
-    PARTNER_ID = partner;
+    stakeRegistry = stakeRegistry_;
+    partnerAddress = partner;
+  }
+
+  function getPosition(address token) public view returns (address lpToken, address stakingPool) {
+    address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    bool haveStaking = stakeRegistry != address(0);
+
+    lpToken = registry.latestVault(poolToken);
+    stakingPool = haveStaking ? IYStakingRegistry(stakeRegistry).stakingPool(lpToken) : address(0);
   }
 
   function positionOf(address user, address token) public view returns (uint256 amount, uint256 amountDeposited) {
@@ -62,17 +80,6 @@ contract YearnModule is ModuleBase {
     pendingRewards = IStakingRewards(stakingPool).pendingReward(user);
   }
 
-  function depositAndStake(address stakingPool, address token, uint256 amount)
-    public
-    payable
-    returns (uint256 sharesStaked)
-  {
-    address vault = registry.latestVault(token);
-    sharesStaked = deposit(token, amount);
-    IERC20(vault).approve(stakingPool, sharesStaked);
-    IStakingRewards(stakingPool).stakeFor(msg.sender, sharesStaked);
-  }
-
   function deposit(address token, uint256 amount) public payable returns (uint256 sharesAdded) {
     if (token == Constants.NATIVE_TOKEN) {
       amount = wrapETH(amount);
@@ -82,7 +89,13 @@ contract YearnModule is ModuleBase {
 
     address vault = registry.latestVault(token);
     IERC20(token).approve(address(tracker), amount);
-    sharesAdded = IYPartnerTracker(tracker).deposit(vault, PARTNER_ID, amount);
+    sharesAdded = IYPartnerTracker(tracker).deposit(vault, partnerAddress, amount);
+
+    (, address stakingPool) = getPosition(token);
+    if (stakingPool != address(0)) {
+      IERC20(vault).approve(stakingPool, sharesAdded);
+      IStakingRewards(stakingPool).stakeFor(msg.sender, sharesAdded);
+    }
 
     _sweepToken(vault);
   }
@@ -108,8 +121,27 @@ contract YearnModule is ModuleBase {
     _sweepToken(IYVault(vault).token());
   }
 
+  function unstakeExternal(address token, uint256 amount) public view returns (address target, bytes memory data) {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    (, target) = getPosition(token);
+
+    data = abi.encodeWithSelector(IStakingRewards.withdraw.selector, convertAssetToShare(token, amount));
+  }
+
+  function collectRewardsExternal(address token) public view returns (address target, bytes memory data) {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    (, target) = getPosition(token);
+
+    data = abi.encodeWithSelector(IStakingRewards.getReward.selector);
+  }
+
   function convertShareToAsset(address token, uint256 amount) internal view returns (uint256) {
     IYVault vault = IYVault(registry.latestVault(token));
     return amount * vault.pricePerShare() / 10 ** vault.decimals();
+  }
+
+  function convertAssetToShare(address token, uint256 shares) internal view returns (uint256) {
+    IYVault vault = IYVault(registry.latestVault(token));
+    return shares * 10 ** vault.decimals() / vault.pricePerShare();
   }
 }

@@ -41,8 +41,7 @@ abstract contract ModuleBase {
   }
 
   function balanceOf(address token, uint256 minAmount, address owner) internal view returns (uint256) {
-    uint256 balance =
-      token == address(0) || token == Constants.NATIVE_TOKEN ? owner.balance : IERC20(token).balanceOf(owner);
+    uint256 balance = token == Constants.NATIVE_TOKEN ? owner.balance : IERC20(token).balanceOf(owner);
 
     if (minAmount == type(uint256).max) {
       return balance;
@@ -53,7 +52,7 @@ abstract contract ModuleBase {
   }
 
   function wrapETH(uint256 amount) public payable returns (uint256 wappedAmount) {
-    require(amount <= address(this).balance, "Error: Insufficient ETH");
+    amount = balanceOf(Constants.NATIVE_TOKEN, amount);
 
     if (amount > 0) {
       WETH9.deposit{ value: amount }();
@@ -63,7 +62,7 @@ abstract contract ModuleBase {
   }
 
   function unwrapWETH9(uint256 amount) public payable returns (uint256 unwrappedAmount) {
-    require(amount <= WETH9.balanceOf(address(this)), "Error: Insufficient ETH");
+    amount = balanceOf(address(WETH9), amount);
 
     if (amount > 0) {
       WETH9.withdraw(amount);
@@ -71,8 +70,9 @@ abstract contract ModuleBase {
     unwrappedAmount = amount;
   }
 
-  function pull(address token, uint256 amount) public payable {
+  function pull(address token, uint256 amount) public payable returns (uint256) {
     SafeTransferLib.safeTransferFrom(ERC20(token), msg.sender, address(this), amount);
+    return amount;
   }
 
   function pullBatch(address[] memory tokens, uint256[] memory amounts) public payable {
@@ -82,13 +82,15 @@ abstract contract ModuleBase {
     }
   }
 
-  function pay(address token, address recipient, uint256 amount) public payable {
+  function pay(address token, address recipient, uint256 amount) public payable returns (uint256 restBalance) {
     amount = balanceOf(token, amount);
     if (token == Constants.NATIVE_TOKEN) {
       SafeTransferLib.safeTransferETH(recipient, amount);
     } else {
       SafeTransferLib.safeTransfer(ERC20(token), recipient, amount);
     }
+
+    restBalance = balanceOf(token);
   }
 
   function _sweepToken(address token) internal {

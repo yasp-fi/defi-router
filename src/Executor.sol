@@ -17,18 +17,6 @@ abstract contract Executor {
     _;
   }
 
-  fallback() external payable isNotHalted {
-    require(_validateCallback(msg.sender), "Invalid callback");
-    address target = _getCallackTarget(msg.sender);
-    bytes memory result = msg.data.exec(target, type(uint256).max);
-
-    uint256 size = result.length;
-    assembly {
-      let loc := add(result, 0x20)
-      return(loc, size)
-    }
-  }
-
   receive() external payable {
     require(msg.sender.code.length > 0, "Not allowed from EOA");
   }
@@ -87,6 +75,4 @@ abstract contract Executor {
 
   function _isHalted() internal view virtual returns (bool);
   function _validateTarget(address target) internal view virtual returns (bool);
-  function _validateCallback(address callback) internal view virtual returns (bool);
-  function _getCallackTarget(address callback) internal view virtual returns (address);
 }

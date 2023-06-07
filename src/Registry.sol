@@ -6,19 +6,14 @@ import "./utils/Constants.sol";
 interface IRegistry {
   function halted() external view returns (bool);
   function modules(address) external view returns (bytes32);
-  function callbacks(address) external view returns (bytes32);
   function isValidModule(address module) external view returns (bool);
-  function isValidCallback(address callbackAddr) external view returns (bool);
 }
 
 contract Registry is IRegistry, Owned {
   mapping(address => bytes32) public modules;
-  mapping(address => bytes32) public callbacks;
 
   event ModuleRegistered(address indexed registration, bytes32 info);
   event ModuleUnregistered(address indexed registration);
-  event CallerRegistered(address indexed registration, bytes32 info);
-  event CallerUnregistered(address indexed registration);
   event Halted();
   event Unhalted();
 
@@ -50,10 +45,6 @@ contract Registry is IRegistry, Owned {
     return modules[handler] != 0 && modules[handler] != Constants.DEPRECATED;
   }
 
-  function isValidCallback(address caller) external view override returns (bool) {
-    return callbacks[caller] != 0 && callbacks[caller] != Constants.DEPRECATED;
-  }
-
   function registerModule(address moduleAddr, bytes32 info) external onlyOwner {
     require(moduleAddr != address(0), "zero address");
     require(info != Constants.DEPRECATED, "unregistered info");
@@ -68,21 +59,5 @@ contract Registry is IRegistry, Owned {
     require(modules[moduleAddr] != Constants.DEPRECATED, "unregistered");
     modules[moduleAddr] = Constants.DEPRECATED;
     emit ModuleUnregistered(moduleAddr);
-  }
-
-  function registerCallback(address callbackAddr, bytes32 info) external onlyOwner {
-    require(callbackAddr != address(0), "zero address");
-    require(info != Constants.DEPRECATED, "unregistered info");
-    require(callbacks[callbackAddr] != Constants.DEPRECATED, "unregistered");
-    callbacks[callbackAddr] = info;
-    emit ModuleRegistered(callbackAddr, info);
-  }
-
-  function unregisterCallback(address callbackAddr) external onlyOwner {
-    require(callbackAddr != address(0), "zero address");
-    require(callbacks[callbackAddr] != bytes32(0), "no registration");
-    require(callbacks[callbackAddr] != Constants.DEPRECATED, "unregistered");
-    callbacks[callbackAddr] = Constants.DEPRECATED;
-    emit ModuleUnregistered(callbackAddr);
   }
 }

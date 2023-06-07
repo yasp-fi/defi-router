@@ -21,6 +21,12 @@ contract StargateModule is ModuleBase {
     registry = StargateRegistry(registry_);
   }
 
+  function getPosition(address token) public view returns (address lpToken, address stakingPool) {
+    address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    lpToken = address(registry.getPool(poolToken));
+    stakingPool = address(registry.staking());
+  }
+
   function positionOf(address user, address token) public view returns (uint256 amount, uint256 amountDeposited) {
     address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
     IStargatePool pool = registry.getPool(poolToken);
@@ -75,6 +81,37 @@ contract StargateModule is ModuleBase {
     _sweepToken(token);
 
     return balanceOf(token, type(uint256).max) - balanceBefore;
+  }
+
+  function stakeExternal(address token, uint256 amount) public view returns (address target, bytes memory data) {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    amount = balanceOf(token, amount, msg.sender);
+
+    IStargatePool pool = registry.getPool(token);
+    uint256 stakingId = registry.getStakingId(address(pool));
+
+    target = address(registry.staking());
+    data = abi.encodeWithSelector(IStargateLPStaking.deposit.selector, stakingId, LDtoLP(token, amount));
+  }
+
+  function unstakeExternal(address token, uint256 amount) public view returns (address target, bytes memory data) {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+
+    IStargatePool pool = registry.getPool(token);
+    uint256 stakingId = registry.getStakingId(address(pool));
+
+    target = address(registry.staking());
+    data = abi.encodeWithSelector(IStargateLPStaking.withdraw.selector, stakingId, LDtoLP(token, amount));
+  }
+
+  function collectRewardsExternal(address token) public view returns (address target, bytes memory data) {
+    token = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+
+    IStargatePool pool = registry.getPool(token);
+    uint256 stakingId = registry.getStakingId(address(pool));
+
+    target = address(registry.staking());
+    data = abi.encodeWithSelector(IStargateLPStaking.withdraw.selector, stakingId, 0);
   }
 
   function LDtoLP(address token, uint256 amount) internal view returns (uint256) {

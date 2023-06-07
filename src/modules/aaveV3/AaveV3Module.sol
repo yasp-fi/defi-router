@@ -20,6 +20,12 @@ contract AaveV3Module is ModuleBase {
     return data.aTokenAddress;
   }
 
+  function getPosition(address token) public view returns (address lpToken, address stakingPool) {
+    address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
+    lpToken = getAToken(poolToken);
+    stakingPool = address(0);
+  }
+
   function positionOf(address user, address token) public view returns (uint256 amount, uint256 amountDeposited) {
     address poolToken = token == Constants.NATIVE_TOKEN ? address(WETH9) : token;
     amount = balanceOf(poolToken, user);

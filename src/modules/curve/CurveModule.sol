@@ -168,19 +168,17 @@ contract CurveModule is ModuleBase {
     address token = gauge.lp_token();
 
     SafeTransferLib.safeApprove(ERC20(token), gaugeAddress, _value);
-    bytes memory data = abi.encodeWithSelector(gauge.deposit.selector, _value, msg.sender);
-    ///@notice we need to call via delegatecall, because gauge tokens can't be transfered to router
-    data.exec(gaugeAddress, type(uint256).max);
+    gauge.deposit(_value, msg.sender);
   }
 
-  function unstake(address gaugeAddress, uint256 _value) external returns (uint256) {
-    ICurveGauge gauge = ICurveGauge(gaugeAddress);
+  // function unstake(address gaugeAddress, uint256 _value) external returns (uint256) {
+  //   ICurveGauge gauge = ICurveGauge(gaugeAddress);
 
-    bytes memory data = abi.encodeWithSelector(gauge.withdraw.selector, _value);
-    ///@notice we need to call via delegatecall, because gauge tokens can't be transfered to router
-    data.exec(gaugeAddress, type(uint256).max);
-    return _value;
-  }
+  //   bytes memory data = abi.encodeWithSelector(gauge.withdraw.selector, _value);
+  //   ///@notice we need to call via delegatecall, because gauge tokens can't be transfered to router
+  //   data.exec(gaugeAddress, type(uint256).max);
+  //   return _value;
+  // }
 
   function _addLiquidityBefore(address curvePool, address lpToken, address[] memory tokens, uint256[] memory amounts)
     internal
