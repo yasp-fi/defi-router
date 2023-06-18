@@ -1,48 +1,58 @@
-// SPDX-License-Identifier: SEE LICENSE IN LICENSE
 pragma solidity ^0.8.13;
 
+import "./interfaces/IExecutor.sol";
+import "./utils/LibOps.sol";
 import "./utils/LibConfig.sol";
 import "./utils/LibCalldata.sol";
-import "./utils/Constants.sol";
+import "./utils/Address.sol";
 
-abstract contract Executor {
+contract Executor is IExecutor {
   using LibConfig for bytes32;
   using LibCalldata for bytes;
+  using Address for address;
 
-  event ExecBegin(address indexed target, bytes4 indexed selector, bytes payload);
-  event ExecEnd(address indexed target, bytes4 indexed selector, bytes result);
+  address public immutable router;
+  address private _caller;
+  address private _owner;
 
-  modifier isNotHalted() {
-    require(!_isHalted(), "Halted");
+  event CallBegin(address indexed target, bytes4 indexed selector, bytes payload);
+  event CallEnd(address indexed target, bytes4 indexed selector, bytes result);
+
+  modifier checkCaller() {
+    address expectedCaller = _caller;
+    require(expectedCaller == msg.sender, "Invalid caller");
+    if (expectedCaller != router) {
+      _caller = router;
+    }
     _;
   }
 
-  receive() external payable {
-    require(msg.sender.code.length > 0, "Not allowed from EOA");
+  constructor() {
+    router = msg.sender;
   }
 
-  function _execute(address[] memory targets, bytes32[] memory configs, bytes[] memory payloads) internal {
-    require(targets.length == configs.length, "Targets and configs length is inconsistent");
-    require(targets.length == payloads.length, "Targets and payloads length is inconsistent");
+  function initialize() external {
+    require(_caller == address(0), "Executor is already Initialized");
+    _caller = router;
+  }
 
+  function execOperations(LibOps.Operation[] calldata operations) external payable checkCaller {
     bytes32[256] memory refArray;
     uint256 refIndex;
-    uint256 pc;
 
-    for (uint256 i = 0; i < targets.length; i++) {
-      address target = targets[i];
-      bytes32 config = configs[i];
-      bytes memory payload = payloads[i];
-
-      require(_validateTarget(target), "Target is not valid");
+    for (uint256 i = 0; i < operations.length; i++) {
+      address target = operations[i].target;
+      bytes32 config = operations[i].config;
+      uint256 value = operations[i].value;
+      bytes memory payload = operations[i].payload;
 
       if (config.isDynamic()) payload.adjust(config, refArray, refIndex);
 
       bytes4 selector = payload.getSelector();
 
-      emit ExecBegin(target, selector, payload);
-      bytes memory result = payload.exec(target, pc++);
-      emit ExecEnd(target, selector, result);
+      emit CallBegin(target, selector, payload);
+      bytes memory result = target.functionCallWithValue(payload, value);
+      emit CallEnd(target, selector, result);
 
       if (config.isReferenced()) {
         uint256 size = config.getReturnSize();
@@ -72,7 +82,4 @@ abstract contract Executor {
       }
     }
   }
-
-  function _isHalted() internal view virtual returns (bool);
-  function _validateTarget(address target) internal view virtual returns (bool);
 }

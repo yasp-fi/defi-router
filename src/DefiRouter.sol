@@ -1,69 +1,64 @@
-// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.13;
 
-import "solmate/utils/SafeTransferLib.sol";
-import "./utils/LibStack.sol";
-import "./utils/LibCalldata.sol";
+import "solmate/auth/Owned.sol";
+import "./interfaces/IRouter.sol";
+import "./utils/Constants.sol";
+import "./utils/Proxy.sol";
 import "./Executor.sol";
-import "./Registry.sol";
 
-contract DefiRouter is Executor {
-  using LibStack for bytes32[];
-  using LibCalldata for bytes;
+contract DeFiRouter is IRouter, Owned {
+  address public executorImpl;
 
-  IRegistry public immutable registry;
-  bytes32[] internal stack;
+  mapping(address user => address executor) public executorOf;
 
-  event Sweep(address indexed token, address indexed receiver, uint256 amount);
+  event NewExecutor(address owner_, address executor_);
+  event ExecutorUpdate();
 
-  constructor(address _registry) {
-    registry = IRegistry(_registry);
+  constructor(address owner_, address executorImpl_) Owned(owner_) {
+    executorImpl = executorImpl_;
   }
 
-  function execute(address[] memory modules, bytes32[] memory configs, bytes[] memory payloads)
-    external
-    payable
-    isNotHalted
-  {
-    _beforeExecute();
-    _execute(modules, configs, payloads);
-    _afterExecute();
+  function updateExecutorImpl(address executorImpl_) external onlyOwner {
+    executorImpl = executorImpl_;
+    emit ExecutorUpdate();
   }
 
-  function _isHalted() internal view virtual override returns (bool) {
-    return registry.halted();
+  function getExecutorAddress(address owner_) external view returns (address) {
+    return address(
+      uint160(
+        uint256(
+          keccak256(
+            abi.encodePacked(
+              bytes1(0xff),
+              address(this),
+              bytes32(bytes20((uint160(owner_)))),
+              keccak256(abi.encodePacked(type(Proxy).creationCode, abi.encode(address(this))))
+            )
+          )
+        )
+      )
+    );
   }
 
-  function _validateTarget(address module) internal view virtual override returns (bool) {
-    return registry.isValidModule(module);
+  function createExecutor(address owner_) public returns (address) {
+    require(executorOf[owner_] == address(0), "Executor already created");
+
+    bytes32 salt = bytes32(bytes20((uint160(owner_))));
+    address executor = address(new Proxy{salt:salt}(address(this)));
+
+    executorOf[owner_] = executor;
+
+    emit NewExecutor(owner_, executor);
+
+    return executor;
   }
 
-  function _beforeExecute() internal { }
+  function execute(LibOps.OperationBatch calldata batch) external payable {
+    require(block.timestamp <= batch.deadline, "Operation batch was expired");
 
-  function _afterExecute() internal {
-    while (stack.length > 0) {
-      bytes4 signature = stack.popSig();
-      if (signature == Constants.SWEEP_SIG) {
-        _sweep(stack.popAddress(), msg.sender, 0);
-      } else if (signature == Constants.POSTPROCESS_SIG) {
-        bytes memory data = abi.encodeWithSelector(Constants.POSTPROCESS_SIG);
-        data.exec(stack.popAddress(), type(uint256).max);
-      } else {
-        revert("Invalid signature");
-      }
-    }
-    if (address(this).balance > 0) {
-      SafeTransferLib.safeTransferETH(msg.sender, address(this).balance);
-    }
-  }
+    address executor = executorOf[msg.sender];
+    executor = executor == address(0) ? createExecutor(msg.sender) : executor;
 
-  function _sweep(address token, address recipient, uint256 amountMinimum) internal {
-    uint256 balance = ERC20(token).balanceOf(address(this));
-    require(balance >= amountMinimum, "Error: Insufficient ERC20 balance");
-
-    if (balance > 0) {
-      SafeTransferLib.safeTransfer(ERC20(token), recipient, balance);
-      emit Sweep(token, recipient, balance);
-    }
+    IExecutor(executor).execOperations{ value: msg.value }(batch.operations);
   }
 }

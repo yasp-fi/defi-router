@@ -38,32 +38,4 @@ library LibCalldata {
       }
     }
   }
-
-  function exec(bytes memory data, address to, uint256 counter) internal returns (bytes memory result) {
-    bool success;
-    uint256 gasOffset = Constants.GAS_CALL_OFFSET;
-
-    assembly {
-      success := delegatecall(sub(gas(), gasOffset), to, add(data, 0x20), mload(data), 0, 0)
-      let size := returndatasize()
-      result := mload(0x40)
-
-      mstore(0x40, add(result, and(add(add(size, 0x20), 0x1f), not(0x1f))))
-      mstore(result, size)
-      returndatacopy(add(result, 0x20), 0, size)
-    }
-
-    if (!success) {
-      if (result.length < 68) revert("Execution is failed");
-      assembly {
-        result := add(result, 0x04)
-      }
-
-      if (counter == type(uint256).max) {
-        revert(abi.decode(result, (string))); // Don't prepend counter
-      } else {
-        revert(string(abi.encodePacked(counter, "_", abi.decode(result, (string)))));
-      }
-    }
-  }
 }
