@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 import "solmate/auth/Owned.sol";
 import "./interfaces/IRouter.sol";
 import "./interfaces/IExecutor.sol";
-import "./utils/Constants.sol";
 import "./utils/Proxy.sol";
 
 contract DeFiRouter is IRouter, Owned {

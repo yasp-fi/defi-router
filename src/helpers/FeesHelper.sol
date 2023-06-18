@@ -2,9 +2,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/interfaces/IERC20.sol";
 import "solmate/auth/Owned.sol";
-import "../utils/Constants.sol";
 
 contract FeesHelper is Owned {
+  uint256 constant MAX_BPS = 10000;
+
   address public treasury;
 
   event FeeCollected(address indexed token, uint256 amount);
@@ -21,7 +22,7 @@ contract FeesHelper is Owned {
     uint256 availableFunds = IERC20(token).allowance(owner_, address(this));
     IERC20(token).transferFrom(owner_, address(this), availableFunds);
     if (feeBps > 0) {
-      uint256 feeAmount = availableFunds * feeBps / Constants.MAX_BPS;
+      uint256 feeAmount = availableFunds * feeBps / MAX_BPS;
       IERC20(token).transfer(treasury, feeAmount);
       restAmount = availableFunds - feeAmount;
       emit FeeCollected(token, feeAmount);
@@ -33,7 +34,7 @@ contract FeesHelper is Owned {
   function sweep(address token, address owner_, uint256 feeBps) external {
     uint256 availableFunds = IERC20(token).balanceOf(address(this));
     if (feeBps > 0) {
-      uint256 feeAmount = availableFunds * feeBps / Constants.MAX_BPS;
+      uint256 feeAmount = availableFunds * feeBps / MAX_BPS;
       IERC20(token).transfer(treasury, feeAmount);
       emit FeeCollected(token, feeAmount);
     }
