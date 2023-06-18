@@ -2,9 +2,9 @@ pragma solidity ^0.8.13;
 
 import "solmate/auth/Owned.sol";
 import "./interfaces/IRouter.sol";
+import "./interfaces/IExecutor.sol";
 import "./utils/Constants.sol";
 import "./utils/Proxy.sol";
-import "./Executor.sol";
 
 contract DeFiRouter is IRouter, Owned {
   address public executorImpl;
@@ -19,6 +19,7 @@ contract DeFiRouter is IRouter, Owned {
   }
 
   function updateExecutorImpl(address executorImpl_) external onlyOwner {
+    require(executorImpl_.code.length > 0, "implementation is not contract");
     executorImpl = executorImpl_;
     emit ExecutorUpdate();
   }
@@ -53,12 +54,9 @@ contract DeFiRouter is IRouter, Owned {
     return executor;
   }
 
-  function execute(LibOps.OperationBatch calldata batch) external payable {
-    require(block.timestamp <= batch.deadline, "Operation batch was expired");
-
+  function execute(bytes32[] calldata commands, bytes[] memory stack) external payable {
     address executor = executorOf[msg.sender];
     executor = executor == address(0) ? createExecutor(msg.sender) : executor;
-
-    IExecutor(executor).execOperations{ value: msg.value }(batch.operations);
+    IExecutor(executor).run{ value: msg.value }(commands, stack);
   }
 }

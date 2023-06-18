@@ -1,15 +1,11 @@
 pragma solidity ^0.8.13;
 
 import "./interfaces/IExecutor.sol";
-import "./utils/LibOps.sol";
-import "./utils/LibConfig.sol";
-import "./utils/LibCalldata.sol";
-import "./utils/Address.sol";
+import "./utils/LibCommands.sol";
+import "./utils/Constants.sol";
 
 contract Executor is IExecutor {
-  using LibConfig for bytes32;
-  using LibCalldata for bytes;
-  using Address for address;
+  using LibCommands for bytes[];
 
   address public immutable router;
   address private _caller;
@@ -17,6 +13,8 @@ contract Executor is IExecutor {
 
   event CallBegin(address indexed target, bytes4 indexed selector, bytes payload);
   event CallEnd(address indexed target, bytes4 indexed selector, bytes result);
+
+  error ExecutionFailed(uint256 command_index, address target, string message);
 
   modifier checkCaller() {
     address expectedCaller = _caller;
@@ -27,8 +25,8 @@ contract Executor is IExecutor {
     _;
   }
 
-  constructor() {
-    router = msg.sender;
+  constructor(address router_) {
+    router = router_;
   }
 
   function initialize() external {
@@ -36,50 +34,72 @@ contract Executor is IExecutor {
     _caller = router;
   }
 
-  function execOperations(LibOps.Operation[] calldata operations) external payable checkCaller {
-    bytes32[256] memory refArray;
-    uint256 refIndex;
-
-    for (uint256 i = 0; i < operations.length; i++) {
-      address target = operations[i].target;
-      bytes32 config = operations[i].config;
-      uint256 value = operations[i].value;
-      bytes memory payload = operations[i].payload;
-
-      if (config.isDynamic()) payload.adjust(config, refArray, refIndex);
-
-      bytes4 selector = payload.getSelector();
-
-      emit CallBegin(target, selector, payload);
-      bytes memory result = target.functionCallWithValue(payload, value);
-      emit CallEnd(target, selector, result);
-
-      if (config.isReferenced()) {
-        uint256 size = config.getReturnSize();
-        uint256 newIndex = _updateReferences(refArray, result, refIndex);
-        require(newIndex == refIndex + size, "Return size and parsed return size not matched");
-        refIndex = newIndex;
-      }
-    }
+  function run(bytes32[] calldata commands, bytes[] memory stack) external payable checkCaller {
+    _execute(commands, stack);
   }
 
-  function _updateReferences(bytes32[256] memory refArray, bytes memory ret, uint256 index)
-    internal
-    pure
-    returns (uint256 newIndex)
-  {
-    uint256 len = ret.length;
-    // The return value should be multiple of 32-bytes to be parsed.
-    require(len % 32 == 0, "illegal length for _parse");
-    // Estimate the tail after the process.
-    newIndex = index + len / 32;
-    require(newIndex <= 256, "stack overflow");
-    assembly {
-      let offset := shl(5, index)
-      // Store the data into refArray
-      for { let i := 0 } lt(i, len) { i := add(i, 0x20) } {
-        mstore(add(refArray, add(i, offset)), mload(add(add(ret, i), 0x20)))
+  function _execute(bytes32[] calldata commands, bytes[] memory state) internal returns (bytes[] memory) {
+    bytes32 command;
+    address target;
+    uint256 flags;
+    bytes32 indices;
+
+    bool success;
+    bytes memory outdata;
+
+    for (uint256 i; i < commands.length; i++) {
+      command = commands[i];
+      flags = uint256(uint8(bytes1(command << 32)));
+      target = address(uint160(uint256(command)));
+
+      if (flags & Constants.FLAG_EXTENDED_COMMAND != 0) {
+        indices = commands[i++];
+      } else {
+        indices = bytes32(uint256(command << 40) | Constants.SHORT_COMMAND_FILL);
+      }
+      if (flags & Constants.FLAG_CT_MASK == Constants.FLAG_CT_DELEGATECALL) {
+        // delegate call
+        (success, outdata) = target.delegatecall(state.buildInputs(bytes4(command), indices));
+      } else if (flags & Constants.FLAG_CT_MASK == Constants.FLAG_CT_CALL) {
+        // call
+        (success, outdata) = target.call(state.buildInputs(bytes4(command), indices));
+      } else if (flags & Constants.FLAG_CT_MASK == Constants.FLAG_CT_STATICCALL) {
+        // static call
+        (success, outdata) = target.staticcall(state.buildInputs(bytes4(command), indices));
+      } else if (flags & Constants.FLAG_CT_MASK == Constants.FLAG_CT_VALUECALL) {
+        // call with value
+        uint256 calleth;
+        bytes memory v = state[uint8(bytes1(indices))];
+        require(v.length == 32, "_execute: value call has no value indicated.");
+        assembly {
+          calleth := mload(add(v, 0x20))
+        }
+        (success, outdata) = target.call{ value: calleth }(
+          state.buildInputs(bytes4(command), bytes32(uint256(indices << 8) | Constants.IDX_END_OF_ARGS))
+        );
+      } else {
+        revert("Invalid calltype");
+      }
+
+      if (!success) {
+        if (outdata.length > 0) {
+          assembly {
+            outdata := add(outdata, 68)
+          }
+        }
+        revert ExecutionFailed({
+          command_index: i,
+          target: target,
+          message: outdata.length > 0 ? string(outdata) : "Unknown"
+        });
+      }
+
+      if (flags & Constants.FLAG_TUPLE_RETURN != 0) {
+        state.writeTuple(bytes1(command << 88), outdata);
+      } else {
+        state = state.writeOutputs(bytes1(command << 88), outdata);
       }
     }
+    return state;
   }
 }
