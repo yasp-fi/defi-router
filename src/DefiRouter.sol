@@ -66,21 +66,25 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
     return executor;
   }
 
-  function execute(bytes32[] memory commands, bytes[] memory stack) external payable  returns(bytes[] memory) {
+  function execute(bytes32[] memory commands, bytes[] memory stack) external payable returns (bytes[] memory) {
     return _execute(msg.sender, commands, stack);
   }
 
-  function executeFor(address user, IRouter.Payload memory payload, bytes calldata signature) external payable  returns(bytes[] memory) {
-    require(forwarders[msg.sender], "Permission denied, method is for forwarders only");
+  function executeFor(address user, IRouter.Payload memory payload, bytes calldata signature)
+    external
+    payable
+    returns (bytes[] memory)
+  {
+    require(forwarders[msg.sender], "Permission denied");
     require(block.timestamp <= payload.deadline, "Signature was expired");
-    
+
     _useUnorderedNonce(user, payload.nonce);
     user.verify(_hashTypedData(payload.hash()), signature);
 
     return _execute(user, payload.commands, payload.stack);
   }
 
-  function _execute(address user, bytes32[] memory commands, bytes[] memory stack) internal returns(bytes[] memory) {
+  function _execute(address user, bytes32[] memory commands, bytes[] memory stack) internal returns (bytes[] memory) {
     address executor = executorOf[user];
     executor = executor == address(0) ? createExecutor(user) : executor;
     return IExecutor(executor).run{ value: msg.value }(commands, stack);

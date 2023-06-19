@@ -41,7 +41,7 @@ contract Executor is IExecutor {
   }
 
   function run(bytes32[] calldata commands, bytes[] memory stack) external payable checkCaller returns (bytes[] memory) {
-   return _execute(commands, stack);
+    return _execute(commands, stack);
   }
 
   function _execute(bytes32[] calldata commands, bytes[] memory state) internal returns (bytes[] memory) {
