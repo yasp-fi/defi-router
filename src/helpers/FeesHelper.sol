@@ -18,26 +18,32 @@ contract FeesHelper is Owned {
     treasury = newTreasury_;
   }
 
-  function pull(address token, address owner_, uint256 feeBps) external returns (uint256 restAmount) {
-    uint256 availableFunds = IERC20(token).allowance(owner_, address(this));
-    IERC20(token).transferFrom(owner_, address(this), availableFunds);
+  function pay(address token, uint256 feeBps) public returns (uint256 feeAmount, uint256 restAmount) {
+    require(feeBps <= MAX_BPS, "BPS > 10000");
+    uint256 availableFunds = IERC20(token).balanceOf(address(this));
+    feeAmount = availableFunds * feeBps / MAX_BPS;
+    restAmount = availableFunds - feeAmount;
+
+    IERC20(token).transfer(treasury, feeAmount);
+    emit FeeCollected(token, feeAmount);
+  }
+
+  function pull(address token, address holder, uint256 feeBps) external returns (uint256 amountPulled) {
+    uint256 availableFunds = IERC20(token).allowance(holder, address(this));
+    IERC20(token).transferFrom(holder, address(this), availableFunds);
     if (feeBps > 0) {
-      uint256 feeAmount = availableFunds * feeBps / MAX_BPS;
-      IERC20(token).transfer(treasury, feeAmount);
-      restAmount = availableFunds - feeAmount;
-      emit FeeCollected(token, feeAmount);
+      (, amountPulled) = pay(token, feeBps);
     } else {
-      restAmount = availableFunds;
+      amountPulled = availableFunds;
     }
   }
 
-  function sweep(address token, address owner_, uint256 feeBps) external {
-    uint256 availableFunds = IERC20(token).balanceOf(address(this));
+  function sweep(address token, address receiver, uint256 feeBps) external returns (uint256 amountSweeped) {
     if (feeBps > 0) {
-      uint256 feeAmount = availableFunds * feeBps / MAX_BPS;
-      IERC20(token).transfer(treasury, feeAmount);
-      emit FeeCollected(token, feeAmount);
+      (, amountSweeped) = pay(token, feeBps);
+    } else {
+      amountSweeped = IERC20(token).balanceOf(address(this));
     }
-    IERC20(token).transfer(owner_, IERC20(token).balanceOf(address(this)));
+    IERC20(token).transfer(receiver, amountSweeped);
   }
 }

@@ -40,8 +40,8 @@ contract Executor is IExecutor {
     _caller = router;
   }
 
-  function run(bytes32[] calldata commands, bytes[] memory stack) external payable checkCaller {
-    _execute(commands, stack);
+  function run(bytes32[] calldata commands, bytes[] memory stack) external payable checkCaller returns (bytes[] memory) {
+   return _execute(commands, stack);
   }
 
   function _execute(bytes32[] calldata commands, bytes[] memory state) internal returns (bytes[] memory) {

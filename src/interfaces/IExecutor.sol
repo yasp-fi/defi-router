@@ -4,5 +4,5 @@ pragma solidity ^0.8.13;
 interface IExecutor {
   function router() external view returns (address);
   function initialize() external;
-  function run(bytes32[] calldata commands, bytes[] memory stack) external payable;
+  function run(bytes32[] calldata commands, bytes[] memory stack) external payable returns (bytes[] memory);
 }

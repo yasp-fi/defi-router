@@ -93,6 +93,10 @@ contract DefiRouterTest is Test {
     vm.label(address(executor), "Executor");
   }
 
+  function test_getExecutorAddress(address user1, address user2) public {
+    assertEq(user1 == user2, router.getExecutorAddress(user1) == router.getExecutorAddress(user2));
+  }
+
   function test_createExecutor(address user, uint64 ethValue) public withActor(user, ethValue) {
     address userExecutor = router.createExecutor(user);
     assertEq(userExecutor, router.getExecutorAddress(user));
