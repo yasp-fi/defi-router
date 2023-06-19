@@ -26,7 +26,7 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
   }
 
   function updateForwarder(address forwarder, bool status) external onlyOwner {
-    crankers[forwarder] = status;
+    forwarders[forwarder] = status;
     emit ForwarderUpdated(forwarder, status);
   }
 
@@ -71,7 +71,7 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
   }
 
   function executeFor(address user, IRouter.Payload memory payload, bytes calldata signature) external payable  returns(bytes[] memory) {
-    require(crankers[msg.sender], "Permission denied, method is cranker-only");
+    require(forwarders[msg.sender], "Permission denied, method is for forwarders only");
     require(block.timestamp <= payload.deadline, "Signature was expired");
     
     _useUnorderedNonce(user, payload.nonce);
