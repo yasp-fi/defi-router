@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "../interfaces/IRouter.sol";
+import "./interfaces/IRouter.sol";
 
-contract Proxy {
+contract ExecutorProxy {
   IRouter private immutable _router;
 
   constructor(address router_, address owner_) {

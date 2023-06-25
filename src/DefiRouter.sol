@@ -4,10 +4,10 @@ pragma solidity ^0.8.17;
 import "solmate/auth/Owned.sol";
 import "./interfaces/IRouter.sol";
 import "./interfaces/IExecutor.sol";
-import "./utils/Proxy.sol";
 import "./utils/EIP712.sol";
 import "./utils/SignatureChecker.sol";
 import "./utils/PayloadHash.sol";
+import "./ExecutorProxy.sol";
 
 contract DeFiRouter is IRouter, Owned, EIP712 {
   using SignatureChecker for address;
@@ -37,6 +37,7 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
   }
 
   function executorOf(address owner_) public view returns (address) {
+    bytes32 salt = bytes32(bytes20((uint160(owner_))));
     return address(
       uint160(
         uint256(
@@ -44,10 +45,10 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
             abi.encodePacked(
               bytes1(0xff),
               address(this),
-              bytes32(bytes20((uint160(owner_)))),
+              salt,
               keccak256(
                 abi.encodePacked(
-                  type(Proxy).creationCode,
+                  type(ExecutorProxy).creationCode,
                   abi.encode(address(this)),
                   abi.encode(owner_)
                 )
@@ -65,7 +66,7 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
     }
 
     bytes32 salt = bytes32(bytes20((uint160(owner_))));
-    address executor = address(new Proxy{salt: salt}(address(this), owner_));
+    address executor = address(new ExecutorProxy{salt: salt}(address(this), owner_));
 
     emit NewExecutor(owner_, executor);
 
