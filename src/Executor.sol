@@ -28,7 +28,7 @@ contract Executor is IExecutor {
 
     _owner = owner_;
 
-    // emit Initialize(owner_);
+    emit Initialize(owner_);
   }
 
   function owner() public view returns (address) {
