@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
-import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import "forge-std/interfaces/IERC20.sol";
 import "../src/DeFiRouter.sol";
 import "../src/Executor.sol";

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
 import "forge-std/interfaces/IERC20.sol";
@@ -41,7 +41,7 @@ contract DefiRouterTest is Test {
   bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH =
     keccak256("TokenPermissions(address token,uint256 amount)");
 
-  bytes32 public constant _PERMIT_TRANSFER_FROM_TYPEHASH = keccak256(
+  bytes32 public constant _PERUNLICENSED_TRANSFER_FROM_TYPEHASH = keccak256(
     "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
   );
 

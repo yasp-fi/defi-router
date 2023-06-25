@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
 import "forge-std/interfaces/IERC20.sol";
@@ -29,7 +29,7 @@ contract DefiRouterE2ETest is Test {
   address public USDC = address(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
   address public CURVE2CRV = address(0x7f90122BF0700F9E7e1F688fe926940E8839F353);
 
-  address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+  address public PERUNLICENSED2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
   address public AAVE_POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
   address public STARGATE_USDC_POOL =
     address(0x892785f33CdeE22A30AEF750F285E18c18040c3e);
@@ -71,7 +71,7 @@ contract DefiRouterE2ETest is Test {
   bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH =
     keccak256("TokenPermissions(address token,uint256 amount)");
 
-  bytes32 public constant _PERMIT_TRANSFER_FROM_TYPEHASH = keccak256(
+  bytes32 public constant _PERUNLICENSED_TRANSFER_FROM_TYPEHASH = keccak256(
     "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
   );
 

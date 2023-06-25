@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
 import "forge-std/interfaces/IERC20.sol";
-import "solmate/auth/Owned.sol";
+import "../utils/Owned.sol";
 
 contract FeesHelper is Owned {
   uint256 constant MAX_BPS = 10000;
