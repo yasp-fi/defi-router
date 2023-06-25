@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
 pragma solidity ^0.8.17;
 
 interface IERC1271 {
@@ -6,25 +6,20 @@ interface IERC1271 {
   /// @param hash      Hash of the data to be signed
   /// @param signature Signature byte array associated with _data
   /// @return magicValue The bytes4 magic value 0x1626ba7e
-  function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4 magicValue);
+  function isValidSignature(bytes32 hash, bytes memory signature)
+    external
+    view
+    returns (bytes4 magicValue);
 }
 
 library SignatureChecker {
-  /// @notice Thrown when the passed in signature is not a valid length
-  error InvalidSignatureLength();
+  bytes32 constant UPPER_BIT_MASK =
+    (0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
-  /// @notice Thrown when the recovered signer is equal to the zero address
-  error InvalidSignature();
-
-  /// @notice Thrown when the recovered signer does not equal the claimedSigner
-  error InvalidSigner();
-
-  /// @notice Thrown when the recovered contract signature is incorrect
-  error InvalidContractSignature();
-
-  bytes32 constant UPPER_BIT_MASK = (0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
-
-  function verify(address claimedSigner, bytes32 hash, bytes calldata signature) internal view {
+  function verify(address claimedSigner, bytes32 hash, bytes memory signature)
+    internal
+    view
+  {
     bytes32 r;
     bytes32 s;
     uint8 v;
@@ -40,14 +35,17 @@ library SignatureChecker {
         s = vs & UPPER_BIT_MASK;
         v = uint8(uint256(vs >> 255)) + 27;
       } else {
-        revert InvalidSignatureLength();
+        revert("Invalid signature length");
       }
       address signer = ecrecover(hash, v, r, s);
-      if (signer == address(0)) revert InvalidSignature();
-      if (signer != claimedSigner) revert InvalidSigner();
+      if (signer == address(0)) revert("Invalid signature");
+      if (signer != claimedSigner) revert("Invalid signer");
     } else {
-      bytes4 magicValue = IERC1271(claimedSigner).isValidSignature(hash, signature);
-      if (magicValue != IERC1271.isValidSignature.selector) revert InvalidContractSignature();
+      bytes4 magicValue =
+        IERC1271(claimedSigner).isValidSignature(hash, signature);
+      if (magicValue != IERC1271.isValidSignature.selector) {
+        revert("Invalid contract signature");
+      }
     }
   }
 }

@@ -1,4 +1,5 @@
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity ^0.8.17;
 
 import "solmate/auth/Owned.sol";
 import "./interfaces/IRouter.sol";
@@ -13,7 +14,6 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
   using PayloadHash for IRouter.Payload;
 
   address public executorImpl;
-  mapping(address => address) public executorOf;
   mapping(address => bool) public forwarders;
   mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
 
@@ -36,7 +36,7 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
     emit ExecutorUpdated(executorImpl_);
   }
 
-  function getExecutorAddress(address owner_) external view returns (address) {
+  function executorOf(address owner_) public view returns (address) {
     return address(
       uint160(
         uint256(
@@ -45,7 +45,13 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
               bytes1(0xff),
               address(this),
               bytes32(bytes20((uint160(owner_)))),
-              keccak256(abi.encodePacked(type(Proxy).creationCode, abi.encode(address(this))))
+              keccak256(
+                abi.encodePacked(
+                  type(Proxy).creationCode,
+                  abi.encode(address(this)),
+                  abi.encode(owner_)
+                )
+              )
             )
           )
         )
@@ -54,40 +60,62 @@ contract DeFiRouter is IRouter, Owned, EIP712 {
   }
 
   function createExecutor(address owner_) public returns (address) {
-    require(executorOf[owner_] == address(0), "Executor already created");
+    if (executorOf(owner_).code.length > 0) {
+      return executorOf(owner_);
+    }
 
     bytes32 salt = bytes32(bytes20((uint160(owner_))));
-    address executor = address(new Proxy{salt: salt}(address(this)));
-
-    executorOf[owner_] = executor;
+    address executor = address(new Proxy{salt: salt}(address(this), owner_));
 
     emit NewExecutor(owner_, executor);
 
     return executor;
   }
 
-  function execute(bytes32[] memory commands, bytes[] memory stack) external payable returns (bytes[] memory) {
-    return _execute(msg.sender, commands, stack);
-  }
-
-  function executeFor(address user, IRouter.Payload memory payload, bytes calldata signature)
+  function execute(bytes32[] memory commands, bytes[] memory state)
     external
     payable
     returns (bytes[] memory)
   {
-    require(forwarders[msg.sender], "Permission denied");
-    require(block.timestamp <= payload.deadline, "Signature was expired");
-
-    _useUnorderedNonce(user, payload.nonce);
-    user.verify(_hashTypedData(payload.hash()), signature);
-
-    return _execute(user, payload.commands, payload.stack);
+    return _execute(msg.sender, commands, state);
   }
 
-  function _execute(address user, bytes32[] memory commands, bytes[] memory stack) internal returns (bytes[] memory) {
-    address executor = executorOf[user];
-    executor = executor == address(0) ? createExecutor(user) : executor;
-    return IExecutor(executor).run{ value: msg.value }(commands, stack);
+  function executeFor(
+    bytes32[] memory commands,
+    bytes[] memory state,
+    bytes32 metadata,
+    bytes memory signature
+  ) external returns (bytes[] memory) {
+    require(forwarders[msg.sender], "Invalid forwarder");
+
+    uint48 nonce = uint48(bytes6(metadata));
+    uint48 deadline = uint48(bytes6(metadata << 48));
+    address user = address(bytes20(metadata << 96));
+
+    require(block.timestamp <= deadline, "Signature was expired");
+
+    _useUnorderedNonce(user, nonce);
+
+    IRouter.Payload memory payload = IRouter.Payload({
+      nonce: nonce,
+      deadline: deadline,
+      user: user,
+      commands: commands,
+      state: state
+    });
+
+    user.verify(_hashTypedData(payload.hash()), signature);
+
+    return _execute(user, commands, state);
+  }
+
+  function _execute(
+    address user,
+    bytes32[] memory commands,
+    bytes[] memory state
+  ) internal returns (bytes[] memory) {
+    address executor = createExecutor(user);
+    return IExecutor(executor).run{ value: msg.value }(commands, state);
   }
 
   function _useUnorderedNonce(address from, uint256 nonce) internal {

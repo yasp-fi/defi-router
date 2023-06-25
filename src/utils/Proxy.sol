@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
 import "../interfaces/IRouter.sol";
 
 contract Proxy {
   IRouter private immutable _router;
 
-  constructor(address router_) {
+  constructor(address router_, address owner_) {
     _router = IRouter(router_);
 
-    (bool ok,) = _implementation().delegatecall(abi.encodeWithSignature("initialize()"));
+    (bool ok,) = _implementation().delegatecall(
+      abi.encodeWithSignature("initialize(address)", owner_)
+    );
     require(ok);
   }
 

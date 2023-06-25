@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity ^0.8.17;
 
 /**
  * @title IAavePool
@@ -75,7 +75,12 @@ interface IAavePool {
    * 0 if the action is executed directly by the user, without any middle-man
    *
    */
-  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+  function supply(
+    address asset,
+    uint256 amount,
+    address onBehalfOf,
+    uint16 referralCode
+  ) external;
 
   /**
    * @notice Withdraws an `amount` of underlying asset from the reserve, burning the equivalent aTokens owned
@@ -89,7 +94,9 @@ interface IAavePool {
    * @return The final amount withdrawn
    *
    */
-  function withdraw(address asset, uint256 amount, address to) external returns (uint256);
+  function withdraw(address asset, uint256 amount, address to)
+    external
+    returns (uint256);
 
   /**
    * @notice Returns the state and configuration of the reserve
@@ -97,5 +104,8 @@ interface IAavePool {
    * @return The state and configuration data of the reserve
    *
    */
-  function getReserveData(address asset) external view returns (ReserveData memory);
+  function getReserveData(address asset)
+    external
+    view
+    returns (ReserveData memory);
 }

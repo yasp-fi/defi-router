@@ -1,49 +1,35 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity ^0.8.17;
 
-import "permit2/interfaces/ISignatureTransfer.sol";
 import "forge-std/interfaces/IERC20.sol";
+import "./mocks/ERC20.m.sol";
 import "forge-std/Test.sol";
 import "../src/DefiRouter.sol";
 import "../src/Executor.sol";
 import "../src/utils/Planner.sol";
 
-import "../src/interfaces/external/IAavePool.sol";
-import "../src/interfaces/external/IStargateRouter.sol";
-import "../src/interfaces/external/IStargateStaking.sol";
-import "../src/interfaces/external/IStakingRewards.sol";
-
-interface IWETH9 {
-  function deposit() external payable;
-  function withdraw(uint256) external;
-}
-
-///@dev Fork E2E Tests, uses Arbitrum fork
 contract DefiRouterTest is Test {
+  using PayloadHash for IRouter.Payload;
+
   address public OWNER = address(0xdEADBEeF00000000000000000000000000000000);
-
-  address public WETH = address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-  address public SGETH = address(0x82CbeCF39bEe528B5476FE6d1550af59a9dB6Fc0);
-  address public STG = address(0x6694340fc020c5E6B96567843da2df01b2CE1eb6);
-  address public USDC = address(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
-  address public CURVE2CRV = address(0x7f90122BF0700F9E7e1F688fe926940E8839F353);
-
-  address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
-  address public AAVE_POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
-  address public STARGATE_USDC_POOL = address(0x892785f33CdeE22A30AEF750F285E18c18040c3e);
-  address public STARGATE_FACTORY = address(0x55bDb4164D28FBaF0898e0eF14a589ac09Ac9970);
-  address public STARGATE_ROUTER = address(0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614);
-  address public STARGATE_STAKING = address(0xeA8DfEE1898a7e0a59f7527F076106d7e44c2176);
-  address public YEARN_PARTNER_TRACKER = address(0x0e5b46E4b2a05fd53F5a4cD974eb98a9a613bcb7);
-  address public YEARN_REGISTRY = address(0x3199437193625DCcD6F9C9e98BDf93582200Eb1f);
+  address public USDC = address(new MockERC20("USD Coin", "USDC"));
 
   Planner public planner;
+  Planner public subPlanner;
+
   DeFiRouter public router;
   Executor public executor;
+  address public forwarder = address(0xdadada);
 
-  modifier withActor(address actor, uint64 ethValue) {
+  modifier withActor(uint256 seed, uint64 ethValue) {
+    vm.assume(
+      seed
+        <
+        115792089237316195423570985008687907852837564279074904382605163141518161494337
+    );
+    vm.assume(seed > 0);
     vm.assume(ethValue > 1e8);
-    vm.assume(actor != address(0));
+    address actor = vm.addr(seed);
 
     vm.deal(actor, uint256(ethValue));
     vm.label(actor, "Actor");
@@ -52,7 +38,8 @@ contract DefiRouterTest is Test {
     vm.stopPrank();
   }
 
-  bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
+  bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH =
+    keccak256("TokenPermissions(address token,uint256 amount)");
 
   bytes32 public constant _PERMIT_TRANSFER_FROM_TYPEHASH = keccak256(
     "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
@@ -62,183 +49,243 @@ contract DefiRouterTest is Test {
     return a > b ? a - b : b - a;
   }
 
-  function getPermitTransferSignature(
-    ISignatureTransfer.PermitTransferFrom memory permit,
-    address spender,
-    uint256 privateKey,
-    bytes32 domainSeparator
-  ) internal pure returns (bytes memory sig) {
-    bytes32 tokenPermissions = keccak256(abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
-    bytes32 msgHash = keccak256(
-      abi.encodePacked(
-        "\x19\x01",
-        domainSeparator,
-        keccak256(abi.encode(_PERMIT_TRANSFER_FROM_TYPEHASH, tokenPermissions, spender, permit.nonce, permit.deadline))
-      )
-    );
-
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
-    return bytes.concat(r, s, bytes1(v));
-  }
-
   function setUp() public {
     planner = new Planner();
+    subPlanner = new Planner();
     router = new DeFiRouter(OWNER, address(0));
     executor = new Executor(address(router));
     vm.startPrank(OWNER);
     router.updateExecutorImpl(address(executor));
+    router.updateForwarder(forwarder, true);
     vm.stopPrank();
 
     vm.label(address(router), "DeFiRouter");
-    vm.label(address(executor), "Executor");
+    vm.label(address(executor), "ExecutorImpl");
   }
 
-  function test_getExecutorAddress(address user1, address user2) public {
-    assertEq(user1 == user2, router.getExecutorAddress(user1) == router.getExecutorAddress(user2));
+  function test_getExecutorAddress(address actor1, address actor2) public {
+    assertEq(
+      actor1 == actor2, router.executorOf(actor1) == router.executorOf(actor2)
+    );
   }
 
-  function test_createExecutor(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address userExecutor = router.createExecutor(user);
-    assertEq(userExecutor, router.getExecutorAddress(user));
+  function test_createExecutor(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    address actorExecutor = router.createExecutor(actor);
+    assertEq(actorExecutor, router.executorOf(actor));
+    assertEq(actor, IExecutor(actorExecutor).owner());
   }
 
-  function test_weth(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address executor_ = router.createExecutor(user);
-
-    planner.callWithValue(WETH, IWETH9.deposit.selector);
-    planner.withRawArg(abi.encode(ethValue), false);
-
-    planner.regularCall(WETH, IWETH9.withdraw.selector);
-    planner.withRawArg(abi.encode(ethValue), false);
-
-    planner.callWithValue(user, bytes4(0));
+  function test_executor_receive(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    address actorExecutor = router.createExecutor(actor);
+    payable(actorExecutor).transfer(ethValue);
+    planner.callWithValue(actor, bytes4(0));
     planner.withRawArg(abi.encode(ethValue), false);
 
     (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
-    router.execute{ value: uint256(ethValue) }(_commands, _state);
-
-    assertEq(user.balance, ethValue);
-    assertEq(address(router).balance, 0);
-    assertEq(executor_.balance, 0);
-    assertEq(IERC20(WETH).balanceOf(executor_), 0);
+    router.execute(_commands, _state);
+    assertEq(actor.balance, ethValue);
   }
 
-  function test_token(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address executor_ = router.createExecutor(user);
-    deal(STG, executor_, ethValue);
-    deal(USDC, user, ethValue);
-
-    IERC20(USDC).approve(executor_, ethValue);
-
-    planner.regularCall(USDC, IERC20.transferFrom.selector);
-    planner.withRawArg(abi.encode(user), false);
-    planner.withRawArg(abi.encode(executor_), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-
-    planner.regularCall(STG, IERC20.transfer.selector);
-    planner.withRawArg(abi.encode(user), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-
-    (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
-    router.execute{ value: 0 }(_commands, _state);
-
-    assertEq(IERC20(STG).balanceOf(executor_), 0);
-    assertEq(IERC20(USDC).balanceOf(executor_), ethValue);
-    assertEq(IERC20(USDC).balanceOf(user), 0);
-    assertEq(IERC20(STG).balanceOf(user), ethValue);
+  function test_executor_fallback(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    address actorExecutor = router.createExecutor(actor);
+    actorExecutor.call{ value: ethValue }(abi.encodePacked("Wake up, Neo..."));
   }
 
-  function test_aave(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address executor_ = router.createExecutor(user);
-    deal(WETH, executor_, ethValue);
-
-    planner.regularCall(WETH, IERC20.approve.selector);
-    planner.withRawArg(abi.encode(AAVE_POOL), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-
-    planner.regularCall(AAVE_POOL, IAavePool.supply.selector);
-    planner.withRawArg(abi.encode(WETH), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-    planner.withRawArg(abi.encode(executor_), false);
-    planner.withRawArg(abi.encode(0), false);
-
-    planner.regularCall(AAVE_POOL, IAavePool.withdraw.selector);
-    planner.withRawArg(abi.encode(WETH), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-    planner.withRawArg(abi.encode(user), false);
-
-    (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
-    router.execute{ value: ethValue }(_commands, _state);
-  }
-
-  function test_stargate(address user, uint64 ethValue) public withActor(user, ethValue) {
-    address executor_ = router.createExecutor(user);
+  function test_executeFor(uint256 seed, uint64 ethValue) public {
+    vm.assume(
+      seed
+        <
+        115792089237316195423570985008687907852837564279074904382605163141518161494337
+    );
+    vm.assume(seed > 0);
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
     deal(USDC, executor_, ethValue);
 
-    planner.regularCall(USDC, IERC20.approve.selector);
-    planner.withRawArg(abi.encode(STARGATE_ROUTER), false);
+    planner.regularCall(USDC, IERC20.transfer.selector);
+    planner.withRawArg(abi.encode(actor), false);
     planner.withRawArg(abi.encode(ethValue), false);
-
-    planner.regularCall(STARGATE_ROUTER, IStargateRouter.addLiquidity.selector);
-    planner.withRawArg(abi.encode(1), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-    planner.withRawArg(abi.encode(executor_), false);
-
-    planner.regularCall(STARGATE_USDC_POOL, IERC20.approve.selector);
-    planner.withRawArg(abi.encode(STARGATE_STAKING), false);
-    planner.withRawArg(abi.encode(ethValue), false);
-
-    planner.staticCall(STARGATE_USDC_POOL, IERC20.balanceOf.selector);
-    planner.withRawArg(abi.encode(executor_), false);
-
-    bytes1 stateIndex = planner.saveOutput();
-
-    planner.regularCall(STARGATE_STAKING, IStargateStaking.deposit.selector);
-    planner.withRawArg(abi.encode(0), false);
-    planner.withArg(stateIndex);
-
-    planner.regularCall(STARGATE_STAKING, IStargateStaking.withdraw.selector);
-    planner.withRawArg(abi.encode(0), false);
-    planner.withArg(stateIndex);
-
-    planner.regularCall(STARGATE_ROUTER, IStargateRouter.instantRedeemLocal.selector);
-    planner.withRawArg(abi.encode(1), false);
-    planner.withArg(stateIndex);
-    planner.withRawArg(abi.encode(user), false);
 
     (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
-    router.execute{ value: ethValue }(_commands, _state);
+
+    IRouter.Payload memory payload = IRouter.Payload({
+      nonce: 1337,
+      deadline: uint48(block.timestamp),
+      user: actor,
+      commands: _commands,
+      state: _state
+    });
+
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      seed,
+      keccak256(
+        abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), payload.hash())
+      )
+    );
+    bytes32 metadata = abi.decode(
+      abi.encodePacked(uint48(1337), uint48(block.timestamp), bytes20(actor)),
+      (bytes32)
+    );
+
+    vm.prank(forwarder);
+    router.executeFor(_commands, _state, metadata, abi.encodePacked(r, s, v));
+    assertEq(IERC20(USDC).balanceOf(actor), ethValue);
   }
 
-  // function test_yearn(address user, uint64 ethValue) public withActor(user, ethValue) {
-  //   deal(CURVE2CRV, user, ethValue);
-  //   IERC20(CURVE2CRV).approve(address(router), type(uint256).max);
+  function testFail_executeFor_invalidForwarder(uint256 seed, uint64 ethValue)
+    public
+  {
+    vm.assume(
+      seed
+        <
+        115792089237316195423570985008687907852837564279074904382605163141518161494337
+    );
+    vm.assume(seed > 0);
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    deal(USDC, executor_, ethValue);
 
-  //   address[] memory modules = new address[](3);
-  //   modules[0] = address(yearnModule);
-  //   modules[1] = address(yearnModule);
-  //   modules[2] = address(yearnModule);
-  //   bytes32[] memory configs = new bytes32[](3);
-  //   configs[0] = bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-  //   configs[1] = bytes32(0x0001000000000000000000000000000000000000000000000000000000000000);
-  //   configs[2] = bytes32(0x0100000000000000000200ffffffffffffffffffffffffffffffffffffffffff);
-  //   bytes[] memory payloads = new bytes[](3);
-  //   payloads[0] = abi.encodeWithSelector(ModuleBase.pull.selector, CURVE2CRV, ethValue);
-  //   payloads[1] = abi.encodeWithSelector(YearnModule.deposit.selector, CURVE2CRV, ethValue);
-  //   payloads[2] = abi.encodeWithSelector(YearnModule.withdraw.selector, CURVE2CRV, Constants.BIPS_BASE / 2);
+    planner.regularCall(USDC, IERC20.transfer.selector);
+    planner.withRawArg(abi.encode(actor), false);
+    planner.withRawArg(abi.encode(ethValue), false);
 
-  //   router.execute{ value: uint256(ethValue) }(modules, configs, payloads);
+    (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
 
-  //   (uint256 amount, uint256 amountDeposited) = yearnModule.positionOf(user, CURVE2CRV);
-  //   assertLe(delta(amount, ethValue / 2), 10);
-  //   assertLe(delta(amountDeposited, ethValue / 2), 10);
+    IRouter.Payload memory payload = IRouter.Payload({
+      nonce: 1337,
+      deadline: uint48(block.timestamp),
+      user: actor,
+      commands: _commands,
+      state: _state
+    });
 
-  //   (uint256 rAmount, uint256 rAmountDeposited) = yearnModule.positionOf(address(router), CURVE2CRV);
-  //   assertEq(rAmount, 0);
-  //   assertEq(rAmountDeposited, 0);
-  // }
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      seed,
+      keccak256(
+        abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), payload.hash())
+      )
+    );
+    bytes32 metadata = abi.decode(
+      abi.encodePacked(uint48(1337), uint48(block.timestamp), bytes20(actor)),
+      (bytes32)
+    );
 
-  // function test_hop(address user, uint64 ethValue) public withActor(user, ethValue) { }
+    router.executeFor(_commands, _state, metadata, abi.encodePacked(r, s, v));
+    // TODO: check error emit
+  }
 
-  // function test_symbiosis(address user, uint64 ethValue) public withActor(user, ethValue) { }
+  function testFail_executeFor_signatureExpired(uint256 seed, uint64 ethValue)
+    public
+  {
+    vm.assume(
+      seed
+        <
+        115792089237316195423570985008687907852837564279074904382605163141518161494337
+    );
+    vm.assume(seed > 0);
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    deal(USDC, executor_, ethValue);
+
+    planner.regularCall(USDC, IERC20.transfer.selector);
+    planner.withRawArg(abi.encode(actor), false);
+    planner.withRawArg(abi.encode(ethValue), false);
+
+    (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
+
+    IRouter.Payload memory payload = IRouter.Payload({
+      nonce: 1337,
+      deadline: 0,
+      user: actor,
+      commands: _commands,
+      state: _state
+    });
+
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      seed,
+      keccak256(
+        abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), payload.hash())
+      )
+    );
+    bytes32 metadata = abi.decode(
+      abi.encodePacked(uint48(1337), uint48(0), bytes20(actor)), (bytes32)
+    );
+
+    vm.prank(forwarder);
+    router.executeFor(_commands, _state, metadata, abi.encodePacked(r, s, v));
+    // TODO: check error emit
+  }
+
+  function testFail_executeFor_invalidNonce(uint256 seed, uint64 ethValue)
+    public
+  {
+    vm.assume(
+      seed
+        <
+        115792089237316195423570985008687907852837564279074904382605163141518161494337
+    );
+    vm.assume(seed > 0);
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    deal(USDC, executor_, ethValue);
+
+    planner.regularCall(USDC, IERC20.transfer.selector);
+    planner.withRawArg(abi.encode(actor), false);
+    planner.withRawArg(abi.encode(ethValue), false);
+
+    (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
+
+    IRouter.Payload memory payload = IRouter.Payload({
+      nonce: 1337,
+      deadline: uint48(block.timestamp),
+      user: actor,
+      commands: _commands,
+      state: _state
+    });
+
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      seed,
+      keccak256(
+        abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), payload.hash())
+      )
+    );
+    bytes32 metadata = abi.decode(
+      abi.encodePacked(uint48(1337), uint48(block.timestamp), bytes20(actor)),
+      (bytes32)
+    );
+
+    vm.startPrank(forwarder);
+    router.executeFor(_commands, _state, metadata, abi.encodePacked(r, s, v));
+    router.executeFor(_commands, _state, metadata, abi.encodePacked(r, s, v));
+    vm.stopPrank();
+    // TODO: check error emit
+  }
+
+  function testFail_executor_run(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    deal(USDC, executor_, ethValue);
+
+    planner.regularCall(USDC, IERC20.transfer.selector);
+    planner.withRawArg(abi.encode(actor), false);
+    planner.withRawArg(abi.encode(ethValue), false);
+
+    (bytes32[] memory _commands, bytes[] memory _state) = planner.encode();
+    IExecutor(executor_).run(_commands, _state);
+  }
 }

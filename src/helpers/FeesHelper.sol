@@ -1,4 +1,5 @@
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity ^0.8.17;
 
 import "forge-std/interfaces/IERC20.sol";
 import "solmate/auth/Owned.sol";
@@ -8,7 +9,9 @@ contract FeesHelper is Owned {
 
   address public treasury;
 
-  event FeeCollected(address indexed token, uint256 amount);
+  event FeeCollected(
+    address indexed payer, address indexed token, uint256 amount
+  );
 
   constructor(address owner_, address treasury_) Owned(owner_) {
     treasury = treasury_;
@@ -18,29 +21,43 @@ contract FeesHelper is Owned {
     treasury = newTreasury_;
   }
 
-  function pay(address token, uint256 feeBps) public returns (uint256 feeAmount, uint256 restAmount) {
+  function pay(address token, address payer, uint256 feeBps)
+    public
+    returns (uint256 feeAmount, uint256 restAmount)
+  {
     require(feeBps <= MAX_BPS, "BPS > 10000");
-    uint256 availableFunds = IERC20(token).balanceOf(address(this));
+    uint256 availableFunds;
+    if (payer != address(this)) {
+      availableFunds = IERC20(token).allowance(payer, address(this));
+    } else {
+      availableFunds = IERC20(token).balanceOf(address(this));
+    }
     feeAmount = availableFunds * feeBps / MAX_BPS;
     restAmount = availableFunds - feeAmount;
 
-    IERC20(token).transfer(treasury, feeAmount);
-    emit FeeCollected(token, feeAmount);
+    IERC20(token).transferFrom(payer, treasury, feeAmount);
+    emit FeeCollected(payer, token, feeAmount);
   }
 
-  function pull(address token, address holder, uint256 feeBps) external returns (uint256 amountPulled) {
+  function pullWithFees(address token, address holder, uint256 feeBps)
+    external
+    returns (uint256 amountPulled)
+  {
     uint256 availableFunds = IERC20(token).allowance(holder, address(this));
     IERC20(token).transferFrom(holder, address(this), availableFunds);
     if (feeBps > 0) {
-      (, amountPulled) = pay(token, feeBps);
+      (, amountPulled) = pay(token, address(this), feeBps);
     } else {
       amountPulled = availableFunds;
     }
   }
 
-  function sweep(address token, address receiver, uint256 feeBps) external returns (uint256 amountSweeped) {
+  function sweepWithFees(address token, address receiver, uint256 feeBps)
+    external
+    returns (uint256 amountSweeped)
+  {
     if (feeBps > 0) {
-      (, amountSweeped) = pay(token, feeBps);
+      (, amountSweeped) = pay(token, address(this), feeBps);
     } else {
       amountSweeped = IERC20(token).balanceOf(address(this));
     }

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.15;
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity ^0.8.17;
 
 contract Planner {
   // FLag values
@@ -7,9 +7,6 @@ contract Planner {
   uint8 constant FLAG_CT_CALL = 0x01;
   uint8 constant FLAG_CT_STATICCALL = 0x02;
   uint8 constant FLAG_CT_VALUECALL = 0x03;
-  uint8 constant FLAG_CT_MASK = 0x03;
-  uint8 constant FLAG_EXTENDED_COMMAND = 0x80;
-  uint8 constant FLAG_TUPLE_RETURN = 0x40;
 
   // Input masks
   uint8 constant INPUT_VAR = 0x80; // 0b10000000
@@ -83,6 +80,7 @@ contract Planner {
     Command storage command = commands[commands.length - 1];
     if (command.inputs.length == 6) {
       revert("Planner: Too many arguments");
+      // TODO: add exetended command generation
     }
     if (isDynamic) {
       bytes1 idx = bytes1(uint8(0x80 & state.length));
@@ -113,7 +111,10 @@ contract Planner {
     return bytes1(uint8(state.length - 1));
   }
 
-  function encode() public returns (bytes32[] memory _commands, bytes[] memory _state) {
+  function encode()
+    public
+    returns (bytes32[] memory _commands, bytes[] memory _state)
+  {
     _commands = new bytes32[](commands.length);
     // loop through commands and encode them
     for (uint256 i = 0; i < commands.length; i++) {

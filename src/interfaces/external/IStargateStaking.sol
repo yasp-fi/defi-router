@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.9;
+// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+pragma solidity ^0.8.17;
 
 import "forge-std/interfaces/IERC20.sol";
 
@@ -27,7 +27,10 @@ interface IStargateStaking {
     uint256 accStargatePerShare; // Accumulated STGs per share, times 1e12. See below.
   }
 
-  function userInfo(uint256 _pid, address _owner) external view returns (UserInfo memory);
+  function userInfo(uint256 _pid, address _owner)
+    external
+    view
+    returns (UserInfo memory);
 
   function poolInfo(uint256 _pid) external view returns (PoolInfo memory);
   function poolLength() external view returns (uint256);
@@ -36,5 +39,8 @@ interface IStargateStaking {
 
   function withdraw(uint256 _pid, uint256 _amount) external;
 
-  function pendingStargate(uint256 _pid, address _user) external view returns (uint256);
+  function pendingStargate(uint256 _pid, address _user)
+    external
+    view
+    returns (uint256);
 }
