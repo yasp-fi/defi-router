@@ -39,28 +39,19 @@ contract FeesHelper is Owned {
     emit FeeCollected(payer, token, feeAmount);
   }
 
-  function pullWithFees(address token, address holder, uint256 feeBps)
+  function pull(address token, address holder)
     external
     returns (uint256 amountPulled)
   {
-    uint256 availableFunds = IERC20(token).allowance(holder, address(this));
-    IERC20(token).transferFrom(holder, address(this), availableFunds);
-    if (feeBps > 0) {
-      (, amountPulled) = pay(token, address(this), feeBps);
-    } else {
-      amountPulled = availableFunds;
-    }
+    amountPulled = IERC20(token).allowance(holder, address(this));
+    IERC20(token).transferFrom(holder, address(this), amountPulled);
   }
 
-  function sweepWithFees(address token, address receiver, uint256 feeBps)
+  function sweep(address token, address receiver)
     external
     returns (uint256 amountSweeped)
   {
-    if (feeBps > 0) {
-      (, amountSweeped) = pay(token, address(this), feeBps);
-    } else {
-      amountSweeped = IERC20(token).balanceOf(address(this));
-    }
+    amountSweeped = IERC20(token).balanceOf(address(this));
     IERC20(token).transfer(receiver, amountSweeped);
   }
 }
