@@ -3,11 +3,10 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
 import "forge-std/interfaces/IERC20.sol";
-import "../src/DeFiRouter.sol";
-import "../src/Executor.sol";
+import "../src/helpers/FeesHelper.sol";
 
-contract DeFiRouterScript is Script {
-  function run() public returns (DeFiRouter deployed) {
+contract FeesHelperScript is Script {
+  function run() public returns (FeesHelper deployed) {
     uint256 deployerPrivateKey = uint256(vm.envBytes32(("PRIVATE_KEY")));
 
     address broadcaster = vm.addr(deployerPrivateKey);
@@ -15,9 +14,7 @@ contract DeFiRouterScript is Script {
 
     vm.startBroadcast(deployerPrivateKey);
 
-    deployed = new DeFiRouter(broadcaster, address(0), address(0));
-    Executor executor = new Executor(address(deployed));
-    deployed.updateExecutorImpl(address(executor));
+    deployed = new FeesHelper(broadcaster, broadcaster);
 
     vm.stopBroadcast();
   }
