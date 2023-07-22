@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import "./interfaces/IExecutor.sol";
+import "forge-std/interfaces/IERC20.sol";
 
 contract Executor is IExecutor {
   address public immutable router;
@@ -19,6 +20,11 @@ contract Executor is IExecutor {
     expectedCallbacks[callbackAddr][dataHash] = false;
   }
 
+  modifier onlyRouter() {
+    require(msg.sender == router, "Only router");
+    _;
+  }
+
   constructor(address router_) {
     router = router_;
   }
@@ -29,16 +35,16 @@ contract Executor is IExecutor {
     _executeBatch(msg.data);
   }
 
+  function owner() public view returns (address) {
+    return _owner;
+  }
+
   function initialize(address owner_) external {
     require(_owner == address(0), "Executor was already initialized");
 
     _owner = owner_;
 
     emit Initialize(owner_);
-  }
-
-  function owner() public view returns (address) {
-    return _owner;
   }
 
   function setCallback(address callbackAddr, bytes32 dataHash) public {
@@ -48,9 +54,18 @@ contract Executor is IExecutor {
     expectedCallbacks[callbackAddr][dataHash] = true;
   }
 
-  function executePayload(bytes memory payload) external payable {
-    require(msg.sender == router, "Only router");
+  function executePayload(bytes memory payload) external payable onlyRouter {
     _executeBatch(payload);
+  }
+
+  function payGas(
+    address caller,
+    uint256 gasUsed,
+    address gasToken,
+    uint256 gasPrice
+  ) external onlyRouter returns (uint256 amountPaid) {
+    amountPaid = gasUsed * gasPrice;
+    IERC20(gasToken).transfer(caller, amountPaid);
   }
 
   function _executeBatch(bytes memory payload) internal {

@@ -6,4 +6,10 @@ interface IExecutor {
   function initialize(address owner) external;
   function owner() external view returns (address);
   function executePayload(bytes calldata payload) external payable;
+  function payGas(
+    address caller,
+    uint256 gasUsed,
+    address gasToken,
+    uint256 gasPrice
+  ) external returns (uint256 amountPaid);
 }

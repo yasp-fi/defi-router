@@ -16,16 +16,21 @@ contract PermitVerifier is IVerifier, EIP712 {
 
   mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
 
+  modifier onlyRouter() {
+    require(msg.sender == router, "Only router");
+    _;
+  }
+
   constructor(address router_) {
     router = router_;
   }
 
   function verify(
+    address caller,
     IRouter.SignedTransaction memory signedTransaction,
     bytes calldata signature
-  ) public returns (bool permitted) {
-    require(msg.sender == router, "Only router");
-    validatePayload(signedTransaction);
+  ) public onlyRouter returns (bool permitted) {
+    validatePayload(caller, signedTransaction);
 
     signedTransaction.user.verify(
       _hashTypedData(signedTransaction.hash()), signature
@@ -34,9 +39,11 @@ contract PermitVerifier is IVerifier, EIP712 {
     return true;
   }
 
-  function validatePayload(IRouter.SignedTransaction memory transaction)
-    internal
-  {
+  function validatePayload(
+    address caller,
+    IRouter.SignedTransaction memory transaction
+  ) internal {
+    require(transaction.caller == caller, "Invalid caller");
     require(block.timestamp <= transaction.deadline, "Signature was expired");
     uint256 nonce = transaction.nonce;
     address from = transaction.user;

@@ -6,6 +6,7 @@ import "./IRouter.sol";
 
 interface IVerifier {
   function verify(
+    address caller,
     IRouter.SignedTransaction memory signedTransaction,
     bytes calldata signature
   ) external returns (bool permitted);

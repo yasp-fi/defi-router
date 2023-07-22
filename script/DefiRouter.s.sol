@@ -7,7 +7,7 @@ import "../src/DeFiRouter.sol";
 import "../src/Executor.sol";
 
 contract DeFiRouterScript is Script {
-  function run() public returns (DeFiRouter deployed) {
+  function run() public returns (DeFiRocuter deployed) {
     uint256 deployerPrivateKey = uint256(vm.envBytes32(("PRIVATE_KEY")));
 
     address broadcaster = vm.addr(deployerPrivateKey);
@@ -15,7 +15,7 @@ contract DeFiRouterScript is Script {
 
     vm.startBroadcast(deployerPrivateKey);
 
-    deployed = new DeFiRouter(broadcaster, address(0), address(0));
+    deployed = new DeFiRouter(broadcaster);
     Executor executor = new Executor(address(deployed));
     deployed.updateExecutorImpl(address(executor));
 

@@ -10,28 +10,39 @@ import "./ExecutorProxy.sol";
 contract DeFiRouter is IRouter, Owned {
   address public verifier;
   address public executorImpl;
+  uint256 public baseFee = 15000;
 
   event ExecutorUpdated(address newImplementation);
   event VerifierUpdated(address newVerifier);
+  event BaseFeeUpdated(uint256 newBaseFee);
 
   event NewExecutor(address owner_, address executor_);
+  event GasRefund(
+    address owner_,
+    address caller_,
+    address gasToken,
+    uint256 gasPrice,
+    uint256 gasUsed,
+    uint256 amountPaid
+  );
 
-  constructor(address owner_, address verifier_, address executorImpl_)
-    Owned(owner_)
-  {
-    executorImpl = executorImpl_;
-    verifier = verifier_;
+  constructor(address owner_) Owned(owner_) { }
+
+  function updateBaseFee(uint256 baseFee_) external onlyOwner {
+    baseFee = baseFee_;
+    emit BaseFeeUpdated(baseFee_);
   }
 
   function updateExecutorImpl(address executorImpl_) external onlyOwner {
-    require(executorImpl_.code.length > 0, "implementation is not contract");
+    require(executorImpl_.code.length > 0, "implementation is not a contract");
     executorImpl = executorImpl_;
     emit ExecutorUpdated(executorImpl_);
   }
 
   function updateVerifier(address verifier_) external onlyOwner {
+    require(verifier_.code.length > 0, "Verifier is not a contract");
     verifier = verifier_;
-    emit ExecutorUpdated(verifier_);
+    emit VerifierUpdated(verifier_);
   }
 
   function executorOf(address owner_) public view returns (address) {
@@ -77,30 +88,42 @@ contract DeFiRouter is IRouter, Owned {
   }
 
   function executeFor(
-    uint48 nonce,
-    uint48 deadline,
-    address user,
-    bytes calldata payload,
+    IRouter.SignedTransaction memory signedTransaction,
     bytes calldata signature
   ) external payable {
-    IRouter.SignedTransaction memory signedTransaction = IRouter
-      .SignedTransaction({
-      nonce: nonce,
-      deadline: deadline,
-      user: user,
-      caller: msg.sender,
-      payload: payload
-    });
+    uint256 initialGas = gasleft();
+
+    createExecutor(signedTransaction.user);
 
     require(
-      IVerifier(verifier).verify(signedTransaction, signature),
+      IVerifier(verifier).verify(msg.sender, signedTransaction, signature),
       "Verification failed"
     );
-    _execute(user, payload);
+
+    _execute(signedTransaction.user, signedTransaction.payload);
+    _payGas(signedTransaction, initialGas - gasleft() + baseFee);
   }
 
-  function _execute(address user, bytes calldata payload) internal {
-    address executor = createExecutor(user);
+  function _payGas(
+    IRouter.SignedTransaction memory signedTransaction,
+    uint256 gasUsed
+  ) internal {
+    address user = signedTransaction.user;
+    uint256 gasPrice = signedTransaction.gasPrice;
+    address gasToken = signedTransaction.gasToken;
+    address executor = executorOf(user);
+
+    ///@notice skip sponsored transactions gas refund
+    if (gasPrice == 0) return;
+
+    uint256 amountPaid =
+      IExecutor(executor).payGas(msg.sender, gasUsed, gasToken, gasPrice);
+
+    emit GasRefund(user, msg.sender, gasToken, gasPrice, gasUsed, amountPaid);
+  }
+
+  function _execute(address user, bytes memory payload) internal {
+    address executor = executorOf(user);
     IExecutor(executor).executePayload{ value: msg.value }(payload);
   }
 }
