@@ -94,13 +94,15 @@ contract DeFiRouterTest is Test {
     vm.label(address(executor), "ExecutorImpl");
   }
 
-  function test_getExecutorAddress(address actor1, address actor2) public {
+  function test_router_getExecutorAddress(address actor1, address actor2)
+    public
+  {
     assertEq(
       actor1 == actor2, router.executorOf(actor1) == router.executorOf(actor2)
     );
   }
 
-  function test_createExecutor(uint256 seed, uint64 ethValue)
+  function test_router_createExecutor(uint256 seed, uint64 ethValue)
     public
     withActor(seed, ethValue)
   {
@@ -129,16 +131,7 @@ contract DeFiRouterTest is Test {
     assertEq(actor.balance, ethValue);
   }
 
-  // function test_executor_fallback(uint256 seed, uint64 ethValue)
-  //   public
-  //   withActor(seed, ethValue)
-  // {
-  //   address actor = vm.addr(seed);
-  //   address actorExecutor = router.createExecutor(actor);
-  //   actorExecutor.call{ value: ethValue }(abi.encodePacked("Wake up, Neo..."));
-  // }
-
-  function test_executeFor(uint256 seed, uint64 ethValue) public {
+  function test_router_executeFor(uint256 seed, uint64 ethValue) public {
     vm.assume(
       seed
         <
