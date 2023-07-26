@@ -5,6 +5,7 @@ interface IExecutor {
   function router() external view returns (address);
   function initialize(address owner) external;
   function owner() external view returns (address);
+  function setCallback(uint8 callbackId) external;
   function executePayload(bytes calldata payload) external payable;
   function payGas(
     address caller,

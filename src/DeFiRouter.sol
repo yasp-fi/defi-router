@@ -26,7 +26,12 @@ contract DeFiRouter is IRouter, Owned {
     uint256 amountPaid
   );
 
-  constructor(address owner_) Owned(owner_) { }
+  constructor(address owner_, address executorImpl_, address verifier_)
+    Owned(owner_)
+  { 
+    executorImpl = executorImpl_;
+    verifier = verifier_;
+  }
 
   function updateBaseFee(uint256 baseFee_) external onlyOwner {
     baseFee = baseFee_;

@@ -4,13 +4,13 @@ pragma solidity ^0.8.17;
 import "./interfaces/IRouter.sol";
 
 contract ExecutorProxy {
-  IRouter private immutable _router;
+  address private immutable _router;
 
-  constructor(address router_, address owner_) {
-    _router = IRouter(router_);
+  constructor(address router_, address executorOwner_) {
+    _router = router_;
 
     (bool ok,) = _implementation().delegatecall(
-      abi.encodeWithSignature("initialize(address)", owner_)
+      abi.encodeWithSignature("initialize(address)", executorOwner_)
     );
     require(ok);
   }
@@ -22,7 +22,7 @@ contract ExecutorProxy {
   }
 
   function _implementation() internal view returns (address) {
-    return _router.executorImpl();
+    return IRouter(_router).executorImpl();
   }
 
   function _delegate(address implementation) internal {

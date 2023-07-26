@@ -2,27 +2,28 @@
 pragma solidity ^0.8.17;
 
 import "./interfaces/IExecutor.sol";
+import "./interfaces/IRouter.sol";
 import "forge-std/interfaces/IERC20.sol";
 
 contract Executor is IExecutor {
   address public immutable router;
   address internal _owner;
 
+  // Flashloan callback
+  // 0 - None, 1 - Aave, 2 - Balancer
+  uint8 internal _expectCallbackId;
+
   event Initialize(address indexed owner);
-
-  mapping(address => mapping(bytes32 => bool)) expectedCallbacks;
-
-  modifier onlyCallback() {
-    address callbackAddr = msg.sender;
-    bytes32 dataHash = keccak256(msg.data);
-    require(expectedCallbacks[callbackAddr][dataHash], "Unexpected callback");
-    _;
-    expectedCallbacks[callbackAddr][dataHash] = false;
-  }
 
   modifier onlyRouter() {
     require(msg.sender == router, "Only router");
     _;
+  }
+
+  modifier expectedCallback(uint8 callbackId) {
+    require(_expectCallbackId == callbackId, "Callback call denied");
+    _;
+    _expectCallbackId = 0;
   }
 
   constructor(address router_) {
@@ -30,10 +31,6 @@ contract Executor is IExecutor {
   }
 
   receive() external payable { }
-
-  fallback() external payable onlyCallback {
-    _executeBatch(msg.data);
-  }
 
   function owner() public view returns (address) {
     return _owner;
@@ -47,11 +44,9 @@ contract Executor is IExecutor {
     emit Initialize(owner_);
   }
 
-  function setCallback(address callbackAddr, bytes32 dataHash) public {
-    require(
-      msg.sender == address(this), "This method can only be called via call"
-    );
-    expectedCallbacks[callbackAddr][dataHash] = true;
+  function setCallback(uint8 callbackId) public {
+    require(msg.sender == address(this), "Callback permission denied");
+    _expectCallbackId = callbackId;
   }
 
   function executePayload(bytes memory payload) external payable onlyRouter {
@@ -69,24 +64,14 @@ contract Executor is IExecutor {
   }
 
   function _executeBatch(bytes memory payload) internal {
+    // 
     assembly {
       let length := mload(payload)
       let i := 0x20
-      for {
-        // Pre block is not used in "while mode"
-      } lt(i, length) {
-        // Post block is not used in "while mode"
-      } {
-        // First byte of the data is the operation.
-        // We shift by 248 bits (256 - 8 [operation byte]) it right since mload will always load 32 bytes (a word).
-        // This will also zero out unused data.
+      for { } lt(i, length) { } {
         let operation := shr(0xf8, mload(add(payload, i)))
-        // We offset the load address by 1 byte (operation byte)
-        // We shift it right by 96 bits (256 - 160 [20 address bytes]) to right-align the data and zero out unused data.
         let to := shr(0x60, mload(add(payload, add(i, 0x01))))
-        // We offset the load address by 21 byte (operation byte + 20 address bytes)
         let value := mload(add(payload, add(i, 0x15)))
-        // We offset the load address by 53 byte (operation byte + 20 address bytes + 32 value bytes)
         let dataLength := mload(add(payload, add(i, 0x35)))
         let data := add(payload, add(i, 0x55))
         let success := 0
@@ -98,9 +83,49 @@ contract Executor is IExecutor {
           returndatacopy(0, 0, errorLength)
           revert(0, errorLength)
         }
-        // Next entry starts at 85 byte + data length
         i := add(i, add(0x55, dataLength))
       }
+    }
+  }
+
+  //@notice Aave flashloan callback
+  function executeOperation(
+    address[] calldata assets,
+    uint256[] calldata amounts,
+    uint256[] calldata premiums,
+    address, // initiator
+    bytes calldata params
+  ) external expectedCallback(1) returns (bool) {
+    address pool = msg.sender;
+    _executeBatch(params);
+
+    for (uint256 i = 0; i < assets.length; i++) {
+      IERC20 asset = IERC20(assets[i]);
+      uint256 amountOwing = amounts[i] + premiums[i];
+
+      require(asset.balanceOf(address(this)) >= amountOwing, "Invalid Balance");
+      asset.approve(pool, amountOwing);
+    }
+
+    return true;
+  }
+
+  ///@notice Balancer flashloan callback
+  function receiveFlashLoan(
+    IERC20[] memory tokens,
+    uint256[] memory amounts,
+    uint256[] memory feeAmounts,
+    bytes memory userData
+  ) external expectedCallback(2) {
+    address vault = msg.sender;
+    _executeBatch(userData);
+
+    for (uint256 i = 0; i < tokens.length; i++) {
+      IERC20 asset = tokens[i];
+      uint256 amountOwing = amounts[i] + feeAmounts[i];
+
+      require(asset.balanceOf(address(this)) >= amountOwing, "Invalid Balance");
+      asset.transfer(vault, amountOwing);
     }
   }
 }

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/interfaces/IERC20.sol";
-import "./mocks/ERC20.m.sol";
 import "forge-std/Test.sol";
+import "./mocks/ERC20.m.sol";
 import "../src/DefiRouter.sol";
 import "../src/Executor.sol";
 import "../src/PermitVerifier.sol";
@@ -81,7 +81,7 @@ contract DeFiRouterTest is Test {
   }
 
   function setUp() public {
-    router = new DeFiRouter(OWNER);
+    router = new DeFiRouter(OWNER, address(0), address(0));
     executor = new Executor(address(router));
     verifier = new PermitVerifier(address(router));
 
@@ -366,16 +366,28 @@ contract DeFiRouterTest is Test {
     address actor = vm.addr(seed);
     address executor_ = router.createExecutor(actor);
     bytes memory payload = generatePayload(actor, ethValue);
-
     IExecutor(executor_).executePayload(payload);
   }
 
-  function test_executor_callback(uint256 seed, uint64 ethValue)
+  function testFail_executor_setCallback(uint256 seed, uint64 ethValue)
     public
     withActor(seed, ethValue)
   {
     address actor = vm.addr(seed);
     address executor_ = router.createExecutor(actor);
-    deal(USDC, executor_, ethValue);
+    IExecutor(executor_).setCallback(10);
+  }
+
+  function test_executor_setCallback(uint256 seed) public {
+    vm.assume(
+      seed
+        <
+        115792089237316195423570985008687907852837564279074904382605163141518161494337
+    );
+    vm.assume(seed > 0);
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    vm.prank(executor_);
+    IExecutor(executor_).setCallback(2);
   }
 }

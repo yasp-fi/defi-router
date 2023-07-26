@@ -12,6 +12,7 @@ import "../src/interfaces/external/IStargateRouter.sol";
 import "../src/interfaces/external/IStargateStaking.sol";
 import "../src/interfaces/external/IStakingRewards.sol";
 import "../src/interfaces/external/IUniv3Router.sol";
+import "../src/interfaces/external/IBalancerVault.sol";
 
 interface IWETH9 {
   function deposit() external payable;
@@ -32,6 +33,8 @@ contract DeFiRouterE2ETest is Test {
 
   address public PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
   address public AAVE_POOL = address(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
+  address public BALANCER_VAULT =
+    address(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
   address public STARGATE_USDC_POOL =
     address(0x892785f33CdeE22A30AEF750F285E18c18040c3e);
   address public STARGATE_FACTORY =
@@ -81,7 +84,7 @@ contract DeFiRouterE2ETest is Test {
   }
 
   function setUp() public {
-    router = new DeFiRouter(OWNER);
+    router = new DeFiRouter(OWNER, address(0), address(0));
     executor = new Executor(address(router));
     verifier = new PermitVerifier(address(router));
 
@@ -175,48 +178,25 @@ contract DeFiRouterE2ETest is Test {
   {
     address actor = vm.addr(seed);
     address executor_ = router.createExecutor(actor);
-    deal(WETH, executor_, ethValue, true);
+    deal(USDCE, executor_, ethValue, true);
 
     bytes memory approve = abi.encodeWithSelector(
       IERC20.approve.selector, AAVE_POOL, uint256(ethValue)
     );
 
     bytes memory deposit = abi.encodeWithSelector(
-      IAavePool.supply.selector, uint256(ethValue), executor, uint16(0)
+      IAavePool.supply.selector, USDCE, uint256(ethValue), executor_, uint16(0)
     );
 
     bytes memory withdraw = abi.encodeWithSelector(
-      IAavePool.withdraw.selector, WETH, uint256(ethValue), actor
+      IAavePool.withdraw.selector, USDCE, uint256(ethValue), actor
     );
-
-    // router.execute(
-    //   abi.encodePacked(
-    //     /// Step 1. approve
-    //     uint8(0),
-    //     WETH,
-    //     uint256(0),
-    //     uint256(approve.length),
-    //     approve,
-    //     /// Step 2. supply into Aave
-    //     uint8(0),
-    //     AAVE_POOL,
-    //     uint256(0),
-    //     uint256(deposit.length),
-    //     deposit,
-    //     /// Step 3. withdraw from Aave
-    //     uint8(0),
-    //     AAVE_POOL,
-    //     uint256(0),
-    //     uint256(withdraw.length),
-    //     withdraw
-    //   )
-    // );
 
     router.execute(
       abi.encodePacked(
         /// Step 1. approve
         uint8(0),
-        WETH,
+        USDCE,
         uint256(0),
         uint256(approve.length),
         approve,
@@ -225,7 +205,13 @@ contract DeFiRouterE2ETest is Test {
         AAVE_POOL,
         uint256(0),
         uint256(deposit.length),
-        deposit
+        deposit,
+        /// Step 3. withdraw from Aave
+        uint8(0),
+        AAVE_POOL,
+        uint256(0),
+        uint256(withdraw.length),
+        withdraw
       )
     );
   }
@@ -312,6 +298,105 @@ contract DeFiRouterE2ETest is Test {
         uint256(0),
         uint256(swap.length),
         swap
+      )
+    );
+  }
+
+  function test_aave_flashloan(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    deal(USDCE, executor_, ethValue, true);
+
+    bytes memory approve =
+      abi.encodeWithSelector(IERC20.approve.selector, AAVE_POOL, uint256(0));
+
+    bytes memory subpayload = abi.encodePacked(
+      uint8(0), USDCE, uint256(0), uint256(approve.length), approve
+    );
+
+    bytes memory setCallback =
+      abi.encodeWithSelector(IExecutor.setCallback.selector, uint256(1));
+
+    address[] memory assets = new address[](1);
+    assets[0] = USDCE;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 1e10;
+    uint256[] memory interestModes = new uint256[](1);
+    interestModes[0] = 0;
+
+    bytes memory flashloan = abi.encodeWithSelector(
+      IAavePool.flashLoan.selector,
+      executor_,
+      assets,
+      amounts,
+      interestModes,
+      executor_,
+      subpayload,
+      uint16(0)
+    );
+
+    router.execute(
+      abi.encodePacked(
+        /// Step 1. set callback
+        uint8(0),
+        executor_,
+        uint256(0),
+        uint256(setCallback.length),
+        setCallback,
+        /// Step 2. aave flashloan (create long position)
+        uint8(0),
+        AAVE_POOL,
+        uint256(0),
+        uint256(flashloan.length),
+        flashloan
+      )
+    );
+  }
+
+  function test_balancer_flashloan(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    address executor_ = router.createExecutor(actor);
+    deal(WETH, executor_, ethValue, true);
+
+    bytes memory approve =
+      abi.encodeWithSelector(IERC20.approve.selector, AAVE_POOL, uint256(0));
+
+    bytes memory subpayload = abi.encodePacked(
+      uint8(0), WETH, uint256(0), uint256(approve.length), approve
+    );
+
+    bytes memory setCallback =
+      abi.encodeWithSelector(IExecutor.setCallback.selector, uint256(2));
+
+    address[] memory assets = new address[](1);
+    assets[0] = WETH;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 1e10;
+
+    bytes memory flashloan = abi.encodeWithSelector(
+      IBalancerVault.flashLoan.selector, executor_, assets, amounts, subpayload
+    );
+
+    router.execute(
+      abi.encodePacked(
+        /// Step 1. set callback
+        uint8(0),
+        executor_,
+        uint256(0),
+        uint256(setCallback.length),
+        setCallback,
+        /// Step 2. balancer flashloan
+        uint8(0),
+        BALANCER_VAULT,
+        uint256(0),
+        uint256(flashloan.length),
+        flashloan
       )
     );
   }
