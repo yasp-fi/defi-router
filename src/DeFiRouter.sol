@@ -28,7 +28,7 @@ contract DeFiRouter is IRouter, Owned {
 
   constructor(address owner_, address executorImpl_, address verifier_)
     Owned(owner_)
-  { 
+  {
     executorImpl = executorImpl_;
     verifier = verifier_;
   }
@@ -98,8 +98,6 @@ contract DeFiRouter is IRouter, Owned {
   ) external payable {
     uint256 initialGas = gasleft();
 
-    createExecutor(signedTransaction.user);
-
     require(
       IVerifier(verifier).verify(msg.sender, signedTransaction, signature),
       "Verification failed"
@@ -128,7 +126,7 @@ contract DeFiRouter is IRouter, Owned {
   }
 
   function _execute(address user, bytes memory payload) internal {
-    address executor = executorOf(user);
+    address executor = createExecutor(user);
     IExecutor(executor).executePayload{ value: msg.value }(payload);
   }
 }

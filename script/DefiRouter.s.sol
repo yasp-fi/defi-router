@@ -9,7 +9,6 @@ import "../src/DeFiRouter.sol";
 
 contract DeFiRouterScript is Script {
   function run() public returns (DeFiRouter deployed) {
-    bytes32 salt = keccak256(bytes("I love you"));
     uint256 deployerPrivateKey = uint256(vm.envBytes32(("PRIVATE_KEY")));
 
     address broadcaster = vm.addr(deployerPrivateKey);
@@ -17,8 +16,8 @@ contract DeFiRouterScript is Script {
 
     vm.startBroadcast(deployerPrivateKey);
 
-    // tx 1 - Deploy DeFiRouter ~ 957578 gas
-    deployed = new DeFiRouter{salt: salt}(
+    // tx 1 - Deploy DeFiRouter ~ 949738 gas
+    deployed = new DeFiRouter(
       broadcaster, address(0), address(0)
     );
     // tx 2 - Deploy Executor Implementation ~ 694547 gas

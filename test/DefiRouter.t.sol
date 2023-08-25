@@ -383,4 +383,19 @@ contract DeFiRouterTest is Test {
     vm.prank(executor_);
     IExecutor(executor_).setCallback(2);
   }
+
+  function test_executor_rawCall(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    bytes memory payload = abi.encodePacked(
+      uint8(0), actor, uint256(ethValue), uint256(0), abi.encode(0)
+    );
+
+    (bool success,) = address(router).call{ value: ethValue }(
+      abi.encodeWithSelector(IRouter.execute.selector, payload)
+    );
+    require(success, "");
+  }
 }
