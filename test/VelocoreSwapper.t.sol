@@ -32,7 +32,7 @@ contract VelocoreSwapperTest is Test {
         115792089237316195423570985008687907852837564279074904382605163141518161494337
     );
     vm.assume(seed > 0);
-    vm.assume(ethValue > 1e18);
+    vm.assume(ethValue > 1e8);
     address actor = vm.addr(seed);
 
     vm.label(actor, "Actor");
@@ -120,7 +120,7 @@ contract VelocoreSwapperTest is Test {
     vm.stopPrank();
   }
 
-  function test_execute_native_swap(uint256 seed, uint64 ethValue)
+  function test_execute_native_erc_swap(uint256 seed, uint64 ethValue)
     public
     withActor(seed, ethValue)
   {
@@ -152,7 +152,40 @@ contract VelocoreSwapperTest is Test {
     assertEq(TREASURY.balance, feeAmount);
   }
 
-  function test_execute_erc_swap(uint256 seed, uint64 ethValue)
+  function test_execute_erc_native_swap(uint256 seed, uint64 ethValue)
+    public
+    withActor(seed, ethValue)
+  {
+    address actor = vm.addr(seed);
+    deal(USDC, actor, uint256(ethValue));
+
+    (uint256 feeAmount, uint256 restAmount) = swapper.calcFees(ethValue);
+    address usdcEthPool = address(0xe2c67A9B15e9E7FF8A9Cb0dFb8feE5609923E5DB);
+
+    bytes32[] memory tokenRef = new bytes32[](2);
+    tokenRef[0] = toToken(USDC);
+    tokenRef[1] = bytes32(
+      0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    );
+
+    VelocoreOperation[] memory ops = new VelocoreOperation[](1);
+    ops[0].poolId = toPoolId(0, usdcEthPool);
+    ops[0].tokenInformations = new bytes32[](2);
+    ops[0].tokenInformations[0] =
+      toTokenInfo(0x00, EXACTLY, int128(uint128(restAmount)));
+    ops[0].tokenInformations[1] = toTokenInfo(0x01, AT_MOST, 0);
+    ops[0].data = "";
+
+    IERC20(USDC).approve(address(swapper), ethValue);
+    uint256 amountOut = swapper.execute(
+      tokenRef, new int128[](2), ops, ethValue
+    );
+
+    assertEq(actor.balance, amountOut);
+    assertEq(IERC20(USDC).balanceOf(TREASURY), feeAmount);
+  }
+
+  function test_execute_erc_erc_swap(uint256 seed, uint64 ethValue)
     public
     withActor(seed, ethValue)
   {
