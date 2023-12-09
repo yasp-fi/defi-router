@@ -110,10 +110,10 @@ contract VelocoreSwapper is Owned {
     bytes32[] calldata tokenRef,
     int128[] memory deposit,
     VelocoreOperation[] memory ops,
-    uint256 amountIn
+    uint256 amountIn,
+    address tokenIn,
+    address tokenOut
   ) public payable returns (uint256 amountOut) {
-    address tokenIn = address(uint160(uint256(tokenRef[0])));
-    address tokenOut = address(uint160(uint256(tokenRef[tokenRef.length - 1])));
     uint256 balanceBefore = getBalance(tokenOut);
 
     (uint256 feePaid, uint256 restAmount) =

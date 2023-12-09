@@ -145,7 +145,7 @@ contract VelocoreSwapperTest is Test {
     ops[0].data = "";
 
     uint256 amountOut = swapper.execute{ value: ethValue }(
-      tokenRef, new int128[](2), ops, ethValue
+      tokenRef, new int128[](2), ops, ethValue, NATIVE_TOKEN_ADDRESS, USDC
     );
 
     assertEq(IERC20(USDC).balanceOf(actor), amountOut);
@@ -178,7 +178,7 @@ contract VelocoreSwapperTest is Test {
 
     IERC20(USDC).approve(address(swapper), ethValue);
     uint256 amountOut = swapper.execute(
-      tokenRef, new int128[](2), ops, ethValue
+      tokenRef, new int128[](2), ops, ethValue, USDC, NATIVE_TOKEN_ADDRESS
     );
 
     assertEq(actor.balance, amountOut);
@@ -209,7 +209,7 @@ contract VelocoreSwapperTest is Test {
 
     IERC20(BUSD).approve(address(swapper), ethValue);
     uint256 amountOut =
-      swapper.execute(tokenRef, new int128[](2), ops, ethValue);
+      swapper.execute(tokenRef, new int128[](2), ops, ethValue, BUSD, USDC);
 
     assertEq(IERC20(USDC).balanceOf(actor), amountOut);
     assertEq(IERC20(BUSD).balanceOf(TREASURY), feeAmount);
@@ -251,7 +251,7 @@ contract VelocoreSwapperTest is Test {
 
     IERC20(BUSD).approve(address(swapper), ethValue);
     uint256 amountOut =
-      swapper.execute(tokenRef, new int128[](2), ops, ethValue);
+      swapper.execute(tokenRef, new int128[](2), ops, ethValue, BUSD, USDC);
 
     assertEq(IERC20(USDC).balanceOf(actor), amountOut);
     assertEq(IERC20(BUSD).balanceOf(TREASURY), feeAmount);
@@ -282,7 +282,7 @@ contract VelocoreSwapperTest is Test {
 
     IERC20(BUSD).approve(address(swapper), ethValue);
 
-    swapper.execute(tokenRef, new int128[](2), ops, ethValue);
+    swapper.execute(tokenRef, new int128[](2), ops, ethValue, BUSD, USDC);
   }
 
   function testFail_execute_erc_swap_amountIn_underlflow(
@@ -310,6 +310,6 @@ contract VelocoreSwapperTest is Test {
 
     IERC20(BUSD).approve(address(swapper), restAmount);
 
-    swapper.execute(tokenRef, new int128[](2), ops, restAmount);
+    swapper.execute(tokenRef, new int128[](2), ops, restAmount, BUSD, USDC);
   }
 }
