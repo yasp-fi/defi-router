@@ -3,9 +3,13 @@ pragma solidity ^0.8.17;
 
 import "./interfaces/IExecutor.sol";
 import "./interfaces/IRouter.sol";
-import "forge-std/interfaces/IERC20.sol";
 
-contract Executor is IExecutor {
+import "forge-std/interfaces/IERC20.sol";
+import "./libs/SafeERC20.sol";
+import "@openzeppelin/utils/ReentrancyGuard.sol";
+
+contract Executor is IExecutor, ReentrancyGuard {
+  using SafeERC20 for IERC20;
   address public immutable router;
   address internal _owner;
 
@@ -58,9 +62,9 @@ contract Executor is IExecutor {
     uint256 gasUsed,
     address gasToken,
     uint256 gasPrice
-  ) external onlyRouter returns (uint256 amountPaid) {
+  ) external nonReentrant onlyRouter returns (uint256 amountPaid) {
     amountPaid = gasUsed * gasPrice;
-    IERC20(gasToken).transfer(caller, amountPaid);
+    IERC20(gasToken).safeTransfer(caller, amountPaid);
   }
 
   function _executeBatch(bytes memory payload) internal {
@@ -95,7 +99,7 @@ contract Executor is IExecutor {
     uint256[] calldata premiums,
     address, // initiator
     bytes calldata params
-  ) external expectedCallback(1) returns (bool) {
+  ) external nonReentrant expectedCallback(1) returns (bool) {
     address pool = msg.sender;
     _executeBatch(params);
 
@@ -116,7 +120,7 @@ contract Executor is IExecutor {
     uint256[] memory amounts,
     uint256[] memory feeAmounts,
     bytes memory userData
-  ) external expectedCallback(2) {
+  ) external nonReentrant expectedCallback(2) {
     address vault = msg.sender;
     _executeBatch(userData);
 
@@ -125,7 +129,7 @@ contract Executor is IExecutor {
       uint256 amountOwing = amounts[i] + feeAmounts[i];
 
       require(asset.balanceOf(address(this)) >= amountOwing, "Invalid Balance");
-      asset.transfer(vault, amountOwing);
+      asset.safeTransfer(vault, amountOwing);
     }
   }
 }

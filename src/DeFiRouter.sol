@@ -6,8 +6,9 @@ import "./interfaces/IExecutor.sol";
 import "./interfaces/IVerifier.sol";
 import "./utils/Owned.sol";
 import "./ExecutorProxy.sol";
+import "@openzeppelin/utils/ReentrancyGuard.sol";
 
-contract DeFiRouter is IRouter, Owned {
+contract DeFiRouter is IRouter, Owned, ReentrancyGuard {
   address public verifier;
   address public executorImpl;
   uint256 public baseFee = 15000;
@@ -88,7 +89,7 @@ contract DeFiRouter is IRouter, Owned {
     return executor;
   }
 
-  function execute(bytes calldata payload) external payable {
+  function execute(bytes calldata payload) external nonReentrant payable {
     _execute(msg.sender, payload);
   }
 
